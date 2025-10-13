@@ -14,11 +14,13 @@ import (
 type Status string
 
 const (
+	// Possible statuses for a to-do item
 	StatusNotStarted Status = "not started"
 	StatusStarted    Status = "started"
 	StatusCompleted  Status = "completed"
 )
 
+// Validate checks whether the status value is one of the allowed values.
 func (s Status) Validate() error {
 	switch Status(strings.ToLower(string(s))) {
 	case StatusNotStarted, StatusStarted, StatusCompleted:
@@ -30,13 +32,14 @@ func (s Status) Validate() error {
 
 // Todo represents a single to-do item.
 type Todo struct {
-	ID          int
-	Description string
-	Status      Status
-	CreatedAt   time.Time
+	ID          int       // Unique identifier for the to-do item
+	Description string    // Text description of the task
+	Status      Status    // Current status of the task
+	CreatedAt   time.Time // Timestamp of when the task was created
 }
 
 // addTodo adds a new Todo to the provided slice and returns it.
+// It validates the input, assigns an ID, and appends the new Todo to the list.
 func addTodo(list *[]Todo, desc string, status Status) (Todo, error) {
 	desc = strings.TrimSpace(desc)
 	if desc == "" {
@@ -46,7 +49,7 @@ func addTodo(list *[]Todo, desc string, status Status) (Todo, error) {
 		return Todo{}, err
 	}
 
-	id := len(*list) + 1
+	id := len(*list) + 1 // Generate a simple incremental ID
 	item := Todo{
 		ID:          id,
 		Description: desc,
@@ -57,7 +60,8 @@ func addTodo(list *[]Todo, desc string, status Status) (Todo, error) {
 	return item, nil
 }
 
-// printList renders the current list of todos in a simple table.
+// printList displays the list of to-do items in a tabular format.
+// It uses a tabwriter for better column alignment.
 func printList(list []Todo) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(w, "ID\tDESCRIPTION\tSTATUS\tCREATED")
@@ -67,13 +71,16 @@ func printList(list []Todo) {
 	_ = w.Flush()
 }
 
+// usage prints help text describing how to use the CLI.
 func usage() {
-	fmt.Fprintf(os.Stderr, `to-do CLI\n\n`)
+	fmt.Fprintf(os.Stderr, `To-do CLI\n\n`)
 	fmt.Fprintf(os.Stderr, "Adds a single to-do item to an in-memory (empty) list and prints the list.\n\n")
 	fmt.Fprintf(os.Stderr, "Usage:\n  go run . -add \"<description>\" [-status <not started|started|completed>]\n\n")
 	flag.PrintDefaults()
 }
 
+// main is the entry point of the CLI application.
+// It parses command-line flags, adds a to-do item, and prints the list.
 func main() {
 	var (
 		desc   = flag.String("add", "", "description for the to-do item to add")
@@ -82,16 +89,21 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
+	// Ensure the user provided a description
 	if *desc == "" {
 		usage()
 		os.Exit(2)
 	}
 
-	var list []Todo // empty list at start of the program run
+	// Initialize an empty list for the session
+	var list []Todo
+
+	// Add the new to-do item
 	if _, err := addTodo(&list, *desc, Status(*status)); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 
+	// Print the resulting list
 	printList(list)
 }
