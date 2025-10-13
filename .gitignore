@@ -1,3 +1,5 @@
 *.exe
 todos.csv
 test_todos.csv
+todos.json
+test_todos.json

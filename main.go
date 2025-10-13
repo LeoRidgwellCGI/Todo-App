@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,121 +31,106 @@ func (s Status) Validate() error {
 	}
 }
 
-// Todo represents a single to-do item.
+// Todo represents a single to-do item with metadata.
 type Todo struct {
-	ID          int       // Unique identifier for the to-do item
-	Description string    // Text description of the task
-	Status      Status    // Current status of the task
-	CreatedAt   time.Time // Timestamp of when the task was created
+	ID          int       `json:"id"`          // Unique identifier for the to-do item
+	Description string    `json:"description"` // Text description of the task
+	Status      Status    `json:"status"`      // Current status of the task
+	CreatedAt   time.Time `json:"created_at"`  // Timestamp of when the task was created
 }
 
 // addTodo adds a new Todo to the provided slice and returns it.
-// It validates the input, assigns an ID, and appends the new Todo to the list.
+// It validates the input, assigns an ID, sets the creation time, and appends the new Todo to the list.
 func addTodo(list *[]Todo, desc string, status Status) (Todo, error) {
 	desc = strings.TrimSpace(desc)
 	if desc == "" {
-		return Todo{}, errors.New("description cannot be empty")
+		return Todo{}, errors.New("description cannot be empty") // Ensure description is not empty
 	}
 	if err := status.Validate(); err != nil {
-		return Todo{}, err
+		return Todo{}, err // Validate that the status is correct
 	}
 
-	id := len(*list) + 1 // Generate a simple incremental ID
+	id := len(*list) + 1 // Generate a simple incremental ID based on list length
 	item := Todo{
 		ID:          id,
 		Description: desc,
-		Status:      Status(strings.ToLower(string(status))),
-		CreatedAt:   time.Now(),
+		Status:      Status(strings.ToLower(string(status))), // Normalize status to lowercase
+		CreatedAt:   time.Now(),                              // Record the creation time
 	}
-	*list = append(*list, item)
+	*list = append(*list, item) // Add new item to the list
 	return item, nil
 }
 
 // printList displays the list of to-do items in a tabular format.
-// It uses a tabwriter for better column alignment.
+// It uses a tabwriter for neatly aligned columns in the terminal output.
 func printList(list []Todo) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tDESCRIPTION\tSTATUS\tCREATED")
+	fmt.Fprintln(w, "ID\tDESCRIPTION\tSTATUS\tCREATED") // Header row
 	for _, t := range list {
 		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", t.ID, t.Description, t.Status, t.CreatedAt.Format(time.RFC3339))
 	}
-	_ = w.Flush()
+	_ = w.Flush() // Ensure all data is written to output
 }
 
-// saveCSV writes the list of todos to a CSV file at the given path.
-// The file will contain a header row followed by one row per to-do item.
-func saveCSV(list []Todo, path string) error {
-	// Create (or truncate) the target file. Ensure the directory exists.
-	f, err := os.Create(path)
+// saveJSON writes the list of todos to a JSON file at the given path.
+// It marshals the data with indentation for human-readable formatting.
+func saveJSON(list []Todo, path string) error {
+	// Convert the slice of Todo structs to JSON.
+	data, err := json.MarshalIndent(list, "", "  ")
 	if err != nil {
-		return err
+		return err // Return any marshaling errors
 	}
-	defer f.Close()
 
-	w := csv.NewWriter(f)
-	defer w.Flush()
-
-	// Header
-	if err := w.Write([]string{"id", "description", "status", "created"}); err != nil {
-		return err
-	}
-	// Rows
-	for _, t := range list {
-		row := []string{
-			fmt.Sprintf("%d", t.ID),
-			t.Description,
-			string(t.Status),
-			t.CreatedAt.Format(time.RFC3339),
-		}
-		if err := w.Write(row); err != nil {
-			return err
-		}
-	}
-	return w.Error()
+	// Write the formatted JSON to the specified file path.
+	return os.WriteFile(path, data, 0644)
 }
 
 // usage prints help text describing how to use the CLI.
+// It provides details about the available flags and their purposes.
 func usage() {
-	fmt.Fprintf(os.Stderr, `To-do CLI\n\n`)
-	fmt.Fprintf(os.Stderr, "Adds a single to-do item to an in-memory (empty) list, prints it, then saves to CSV.\n\n")
-	fmt.Fprintf(os.Stderr, "Usage:\n  go run . -add \"<description>\" [-status <not started|started|completed>] [-out todos.csv]\n\n")
+	fmt.Fprintf(os.Stderr, `to-do CLI\n\n`)
+	fmt.Fprintf(os.Stderr, "Adds a single to-do item to an in-memory (empty) list, prints it, then saves to JSON.\n\n")
+	fmt.Fprintf(os.Stderr, "Usage:\n  go run . -add \"<description>\" [-status <not started|started|completed>] [-out todos.json]\n\n")
 	flag.PrintDefaults()
 }
 
 // main is the entry point of the CLI application.
-// It parses command-line flags, adds a to-do item, prints the list, and saves it to CSV.
+// It handles flag parsing, item creation, printing, and JSON file saving.
 func main() {
 	var (
 		desc   = flag.String("add", "", "description for the to-do item to add")
 		status = flag.String("status", string(StatusNotStarted), "status for the new to-do (not started|started|completed)")
-		out    = flag.String("out", "todos.csv", "path to the CSV file to write")
+		out    = flag.String("out", "todos.json", "path to the JSON file to write")
 	)
+
+	// Override default usage message
 	flag.Usage = usage
 	flag.Parse()
 
-	// Ensure the user provided a description
+	// Ensure the user provided a description; if not, show usage and exit.
 	if *desc == "" {
 		usage()
 		os.Exit(2)
 	}
 
-	// Initialize an empty list for the session
+	// Initialize an empty to-do list.
 	var list []Todo
 
-	// Add the new to-do item
+	// Add a new to-do item to the list.
 	if _, err := addTodo(&list, *desc, Status(*status)); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 
-	// Print the resulting list
+	// Print the resulting list in table format.
 	printList(list)
 
-	// Save the list to CSV
-	if err := saveCSV(list, *out); err != nil {
-		fmt.Fprintln(os.Stderr, "failed to save CSV:", err)
+	// Save the current to-do list to a JSON file.
+	if err := saveJSON(list, *out); err != nil {
+		fmt.Fprintln(os.Stderr, "failed to save JSON:", err)
 		os.Exit(1)
 	}
 
+	// Confirm successful save to user.
 	fmt.Println("\nSaved to:", *out)
 }
