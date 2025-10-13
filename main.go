@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -75,62 +76,97 @@ func printList(list []Todo) {
 // saveJSON writes the list of todos to a JSON file at the given path.
 // It marshals the data with indentation for human-readable formatting.
 func saveJSON(list []Todo, path string) error {
-	// Convert the slice of Todo structs to JSON.
+	// Convert the slice of Todo structs to JSON with indentation.
 	data, err := json.MarshalIndent(list, "", "  ")
 	if err != nil {
 		return err // Return any marshaling errors
 	}
-
 	// Write the formatted JSON to the specified file path.
 	return os.WriteFile(path, data, 0644)
 }
 
+// loadJSON reads todos from the given JSON file path and returns them.
+// If the file does not exist, an empty list and nil error are returned so the app can start fresh.
+func loadJSON(path string) ([]Todo, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) { // File missing is not an error for our workflow
+			return []Todo{}, nil
+		}
+		return nil, err
+	}
+	if len(b) == 0 {
+		return []Todo{}, nil
+	}
+	var list []Todo
+	if err := json.Unmarshal(b, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 // usage prints help text describing how to use the CLI.
-// It provides details about the available flags and their purposes.
+// Includes options for listing tasks or adding new ones.
 func usage() {
 	fmt.Fprintf(os.Stderr, `to-do CLI\n\n`)
-	fmt.Fprintf(os.Stderr, "Adds a single to-do item to an in-memory (empty) list, prints it, then saves to JSON.\n\n")
-	fmt.Fprintf(os.Stderr, "Usage:\n  go run . -add \"<description>\" [-status <not started|started|completed>] [-out todos.json]\n\n")
+	fmt.Fprintf(os.Stderr, "Loads existing to-dos from JSON, optionally adds a new item, prints the list, then saves back to JSON.\n\n")
+	fmt.Fprintf(os.Stderr, "Usage:\n  go run . [-list] [-out todos.json]\n  go run . -add \"<description>\" [-status <not started|started|completed>] [-out todos.json]\n\n")
+	fmt.Fprintf(os.Stderr, "Flags:\n  -list\n    \tDisplay current list from JSON and exit (no add).\n  -out string\n    \tPath to JSON file to read from and write to (default \"todos.json\").\n")
 	flag.PrintDefaults()
 }
 
 // main is the entry point of the CLI application.
-// It handles flag parsing, item creation, printing, and JSON file saving.
+// It can either display the current list of to-dos or add a new one.
+// The workflow is:
+//  1. Load existing tasks from disk (if any).
+//  2. If -list is used, display and exit.
+//  3. Otherwise, add a new task, display, and save the updated list.
 func main() {
 	var (
-		desc   = flag.String("add", "", "description for the to-do item to add")
-		status = flag.String("status", string(StatusNotStarted), "status for the new to-do (not started|started|completed)")
-		out    = flag.String("out", "todos.json", "path to the JSON file to write")
+		listOnly = flag.Bool("list", false, "display current list and exit")
+		desc     = flag.String("add", "", "description for the to-do item to add")
+		status   = flag.String("status", string(StatusNotStarted), "status for the new to-do (not started|started|completed)")
+		out      = flag.String("out", "todos.json", "path to the JSON file to read/write")
 	)
 
 	// Override default usage message
 	flag.Usage = usage
 	flag.Parse()
 
-	// Ensure the user provided a description; if not, show usage and exit.
+	// 1) Load existing to-dos from disk (if the file exists).
+	list, err := loadJSON(*out)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "failed to load JSON:", err)
+		os.Exit(1)
+	}
+
+	// 2) If just listing, print current to-dos and exit.
+	if *listOnly && *desc == "" {
+		printList(list)
+		return
+	}
+
+	// 3) If no description provided and not listing, show usage and exit.
 	if *desc == "" {
 		usage()
 		os.Exit(2)
 	}
 
-	// Initialize an empty to-do list.
-	var list []Todo
-
-	// Add a new to-do item to the list.
+	// 4) Add a new to-do item to the list.
 	if _, err := addTodo(&list, *desc, Status(*status)); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 
-	// Print the resulting list in table format.
+	// 5) Print the resulting list in table format.
 	printList(list)
 
-	// Save the current to-do list to a JSON file.
+	// 6) Save the current to-do list back to the same JSON file.
 	if err := saveJSON(list, *out); err != nil {
 		fmt.Fprintln(os.Stderr, "failed to save JSON:", err)
 		os.Exit(1)
 	}
 
-	// Confirm successful save to user.
+	// 7) Confirm successful save to user.
 	fmt.Println("\nSaved to:", *out)
 }
