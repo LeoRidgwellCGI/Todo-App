@@ -34,6 +34,7 @@ Usage:
 Notes:
   * All output is written under ./out/. If you pass a different -out value,
     it will be normalized to ./out/<basename>.
+  * The application stays running and exits only on Ctrl+C (SIGINT).
 
 Global flags (parsed before others in main):
   -logtext              Use plain text logs instead of JSON
@@ -50,7 +51,6 @@ func normalizeOutPath(p string) string {
 		p = "todos.json"
 	}
 	clean := filepath.Clean(p)
-	// First segment check: convert to forward slashes for a simple split.
 	rel := strings.TrimLeft(filepath.ToSlash(clean), "/")
 	firstSeg := rel
 	if idx := strings.IndexByte(rel, '/'); idx >= 0 {
@@ -59,7 +59,6 @@ func normalizeOutPath(p string) string {
 	if firstSeg == "out" {
 		return clean
 	}
-	// Always put file under ./out using its basename.
 	return filepath.Join("out", filepath.Base(clean))
 }
 
@@ -86,7 +85,6 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		return err
 	}
 
-	// Normalize output path to ensure it's under ./out.
 	outPath := normalizeOutPath(*out)
 
 	// Load existing to-dos from file.

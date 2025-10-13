@@ -9,24 +9,27 @@ A to-do item should include a description and a status of "not started", "starte
 - ✅ After printing the list of to-do items, save them to a file on disk
 - ✅ When the application starts, load all to-do items from disk before adding new item
 - ✅ Allow the user to update the description of a to-do item or delete it
-2) Advanced functionality
+
+2) ✅ Advanced functionality
 - ✅ Use the "log/slog" structured logging package to log errors and when data is saved to disk
 - ✅ Use the "context" package to add a TraceID to enable traceability of calls through the solution by adding it to all logs
 - ✅ Separate the core todo store logic into a different package/module to main/CLI code
 - ✅ Write unit tests to cover usefully testable code
-- Use the "os/signal" package and ensure that the application only exits when it receives the interrupt signal (ctrl+c)
+- ✅ Use the "os/signal" package and ensure that the application only exits when it receives the interrupt signal (ctrl+c)
+
 3) API
 - Use ServeMux in the "net/http" package to expose json http endpoints: "/create", "/get", "/update", and "/delete"
 - Add a middleware to create a context with TraceID
+
 4) Web page
 - Use "http.FileServer" to serve a static page to a new "/about" endpoint
 - Use "html/template" to serve a dynamic page containing a list of all to-do items to a new "/list" endpoint
+
 5) Concurrency
 - Use the Actor/Communicating Sequential Processes (CSP) pattern to support concurrent reads and concurrent safe write
 - Use Parallel tests to validate that the solution is concurrent safe
 
 # Potential Inprovements
-Further work:
 These tasks are designed to provide you with exercises beyond the end of the the academy course and are more complicated/involved, with less explanation as to how to execute them:
 
 - Repl (Read-eval-print loop)
