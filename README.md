@@ -38,6 +38,13 @@ go run .
 
 ---
 
+## Testing
+
+Run:
+```bash
+go test ./
+```
+
 ## Usage
 
 ### Commands
