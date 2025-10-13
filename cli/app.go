@@ -18,7 +18,7 @@ func New() *App { return &App{} }
 
 // usage prints help text describing how to use the CLI.
 func usage() {
-	fmt.Fprintf(os.Stderr, `to-do CLI
+	fmt.Fprintf(os.Stderr, `Todo-CLI
 
 Manage to-do items: list, add, update descriptions, or delete by ID.
 
