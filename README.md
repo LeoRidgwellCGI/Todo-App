@@ -27,7 +27,7 @@ All data is stored as JSON under the automatically created `./out/` directory.
 
 Clone and build:
 ```bash
-git clone https://github.com/yourusername/todo-app.git
+git clone https://github.com/leoridgwellcgi/todo-app.git
 cd todo-app
 go build -o todo-app
 ```
