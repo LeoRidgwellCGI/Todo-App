@@ -13,7 +13,7 @@ A to-do item should include a description and a status of "not started", "starte
 - ✅ Use the "log/slog" structured logging package to log errors and when data is saved to disk
 - ✅ Use the "context" package to add a TraceID to enable traceability of calls through the solution by adding it to all logs
 - ✅ Separate the core todo store logic into a different package/module to main/CLI code
-- Write unit tests to cover usefully testable code
+- ✅ Write unit tests to cover usefully testable code
 - Use the "os/signal" package and ensure that the application only exits when it receives the interrupt signal (ctrl+c)
 3) API
 - Use ServeMux in the "net/http" package to expose json http endpoints: "/create", "/get", "/update", and "/delete"
