@@ -59,7 +59,8 @@ Split the todo store "back end" module into a separate executable to the "front 
 - GRPC
 Enable communication between front end and back end with GRPC.
 
-## Links
+# Links
+[https://go.dev/](https://go.dev)
 [https://gobyexample.com/](https://gobyexample.com/)  
 [https://www.oreilly.com/library/view/learning-go-2nd/9781098139285/](https://www.oreilly.com/library/view/learning-go-2nd/9781098139285/)  
 [https://youtu.be/YzLrWHZa-Kc?si=F-UDjZc6eARc1Uws](https://youtu.be/YzLrWHZa-Kc?si=F-UDjZc6eARc1Uws)  
