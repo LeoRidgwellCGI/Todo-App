@@ -40,6 +40,18 @@ type Todo struct {
 	CreatedAt   time.Time `json:"created_at"`  // Timestamp of when the task was created
 }
 
+// getNextID returns the next unique ID greater than any currently in the list.
+// This ensures IDs remain unique even after deletions.
+func getNextID(list []Todo) int {
+	max := 0
+	for _, t := range list {
+		if t.ID > max {
+			max = t.ID
+		}
+	}
+	return max + 1
+}
+
 // addTodo adds a new Todo to the provided slice and returns it.
 // It validates the input, assigns an ID, sets the creation time, and appends the new Todo to the list.
 func addTodo(list *[]Todo, desc string, status Status) (Todo, error) {
@@ -51,47 +63,44 @@ func addTodo(list *[]Todo, desc string, status Status) (Todo, error) {
 		return Todo{}, err // Validate that the status is correct
 	}
 
-	id := len(*list) + 1 // Generate a simple incremental ID based on list length
+	id := getNextID(*list) // Generate a new unique ID
 	item := Todo{
 		ID:          id,
 		Description: desc,
 		Status:      Status(strings.ToLower(string(status))), // Normalize status to lowercase
-		CreatedAt:   time.Now(),                              // Record the creation time
+		CreatedAt:   time.Now(),                              // Record creation time
 	}
-	*list = append(*list, item) // Add new item to the list
+	*list = append(*list, item) // Append the new item
 	return item, nil
 }
 
-// printList displays the list of to-do items in a tabular format.
-// It uses a tabwriter for neatly aligned columns in the terminal output.
+// printList displays all to-do items in a neatly formatted table.
 func printList(list []Todo) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tDESCRIPTION\tSTATUS\tCREATED") // Header row
+	fmt.Fprintln(w, "ID\tDESCRIPTION\tSTATUS\tCREATED")
 	for _, t := range list {
 		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", t.ID, t.Description, t.Status, t.CreatedAt.Format(time.RFC3339))
 	}
-	_ = w.Flush() // Ensure all data is written to output
+	_ = w.Flush()
 }
 
-// saveJSON writes the list of todos to a JSON file at the given path.
-// It marshals the data with indentation for human-readable formatting.
+// saveJSON writes the list of todos to a JSON file.
+// The output is indented for readability.
 func saveJSON(list []Todo, path string) error {
-	// Convert the slice of Todo structs to JSON with indentation.
 	data, err := json.MarshalIndent(list, "", "  ")
 	if err != nil {
-		return err // Return any marshaling errors
+		return err
 	}
-	// Write the formatted JSON to the specified file path.
 	return os.WriteFile(path, data, 0644)
 }
 
-// loadJSON reads todos from the given JSON file path and returns them.
-// If the file does not exist, an empty list and nil error are returned so the app can start fresh.
+// loadJSON reads todos from a JSON file and returns them.
+// If the file does not exist, returns an empty list without error.
 func loadJSON(path string) ([]Todo, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) { // File missing is not an error for our workflow
-			return []Todo{}, nil
+		if errors.Is(err, fs.ErrNotExist) {
+			return []Todo{}, nil // No existing file means no todos yet
 		}
 		return nil, err
 	}
@@ -105,68 +114,148 @@ func loadJSON(path string) ([]Todo, error) {
 	return list, nil
 }
 
-// usage prints help text describing how to use the CLI.
-// Includes options for listing tasks or adding new ones.
+// findIndexByID finds the index of a to-do item by its ID.
+// Returns -1 if not found.
+func findIndexByID(list []Todo, id int) int {
+	for i, t := range list {
+		if t.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// updateDescription updates the description of an existing to-do item by ID.
+func updateDescription(list []Todo, id int, newDesc string) ([]Todo, error) {
+	newDesc = strings.TrimSpace(newDesc)
+	if newDesc == "" {
+		return list, errors.New("new description cannot be empty")
+	}
+	idx := findIndexByID(list, id)
+	if idx == -1 {
+		return list, fmt.Errorf("no to-do with id %d", id)
+	}
+	list[idx].Description = newDesc
+	return list, nil
+}
+
+// deleteTodo removes a to-do item by ID.
+// Returns a new slice without that item.
+func deleteTodo(list []Todo, id int) ([]Todo, error) {
+	idx := findIndexByID(list, id)
+	if idx == -1 {
+		return list, fmt.Errorf("no to-do with id %d", id)
+	}
+	return append(list[:idx], list[idx+1:]...), nil
+}
+
+// usage displays CLI usage instructions.
 func usage() {
 	fmt.Fprintf(os.Stderr, `to-do CLI\n\n`)
-	fmt.Fprintf(os.Stderr, "Loads existing to-dos from JSON, optionally adds a new item, prints the list, then saves back to JSON.\n\n")
-	fmt.Fprintf(os.Stderr, "Usage:\n  go run . [-list] [-out todos.json]\n  go run . -add \"<description>\" [-status <not started|started|completed>] [-out todos.json]\n\n")
-	fmt.Fprintf(os.Stderr, "Flags:\n  -list\n    \tDisplay current list from JSON and exit (no add).\n  -out string\n    \tPath to JSON file to read from and write to (default \"todos.json\").\n")
+	fmt.Fprintf(os.Stderr, "Manage to-do items: list, add, update descriptions, or delete by ID.\n\n")
+	fmt.Fprintf(os.Stderr, "Usage:\n")
+	fmt.Fprintf(os.Stderr, "  go run . -list [-out todos.json]\n")
+	fmt.Fprintf(os.Stderr, "  go run . -add \"<description>\" [-status <not started|started|completed>] [-out todos.json]\n")
+	fmt.Fprintf(os.Stderr, "  go run . -update <id> -newdesc \"<new description>\" [-out todos.json]\n")
+	fmt.Fprintf(os.Stderr, "  go run . -delete <id> [-out todos.json]\n\n")
 	flag.PrintDefaults()
 }
 
-// main is the entry point of the CLI application.
-// It can either display the current list of to-dos or add a new one.
-// The workflow is:
-//  1. Load existing tasks from disk (if any).
-//  2. If -list is used, display and exit.
-//  3. Otherwise, add a new task, display, and save the updated list.
+// main handles command-line arguments and executes the appropriate action.
+// Supported actions:
+//
+//	-list          Display all current to-dos.
+//	-add           Add a new item.
+//	-update        Update a description.
+//	-delete        Delete a to-do by ID.
+//
+// The app always saves changes back to the same JSON file.
 func main() {
+	// Define flags for supported operations.
 	var (
 		listOnly = flag.Bool("list", false, "display current list and exit")
 		desc     = flag.String("add", "", "description for the to-do item to add")
 		status   = flag.String("status", string(StatusNotStarted), "status for the new to-do (not started|started|completed)")
+		updateID = flag.Int("update", 0, "ID of the to-do to update (description only)")
+		newDesc  = flag.String("newdesc", "", "new description for the to-do when using -update")
+		deleteID = flag.Int("delete", 0, "ID of the to-do to delete")
 		out      = flag.String("out", "todos.json", "path to the JSON file to read/write")
 	)
 
-	// Override default usage message
 	flag.Usage = usage
 	flag.Parse()
 
-	// 1) Load existing to-dos from disk (if the file exists).
+	// Load existing to-dos from disk (if the file exists).
 	list, err := loadJSON(*out)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to load JSON:", err)
 		os.Exit(1)
 	}
 
-	// 2) If just listing, print current to-dos and exit.
-	if *listOnly && *desc == "" {
+	// LIST MODE: show all to-dos and exit.
+	if *listOnly && *desc == "" && *updateID == 0 && *deleteID == 0 {
 		printList(list)
 		return
 	}
 
-	// 3) If no description provided and not listing, show usage and exit.
-	if *desc == "" {
-		usage()
-		os.Exit(2)
+	// DELETE MODE: remove a to-do by ID.
+	if *deleteID > 0 {
+		var e error
+		list, e = deleteTodo(list, *deleteID)
+		if e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
+		}
+		printList(list)
+		if err := saveJSON(list, *out); err != nil {
+			fmt.Fprintln(os.Stderr, "failed to save JSON:", err)
+			os.Exit(1)
+		}
+		fmt.Println("\nDeleted ID", *deleteID, "and saved to:", *out)
+		return
 	}
 
-	// 4) Add a new to-do item to the list.
-	if _, err := addTodo(&list, *desc, Status(*status)); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+	// UPDATE MODE: change description for an existing to-do.
+	if *updateID > 0 {
+		if strings.TrimSpace(*newDesc) == "" {
+			fmt.Fprintln(os.Stderr, "-newdesc is required when using -update")
+			os.Exit(2)
+		}
+		var e error
+		list, e = updateDescription(list, *updateID, *newDesc)
+		if e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
+		}
+		printList(list)
+		if err := saveJSON(list, *out); err != nil {
+			fmt.Fprintln(os.Stderr, "failed to save JSON:", err)
+			os.Exit(1)
+		}
+		fmt.Println("\nUpdated ID", *updateID, "and saved to:", *out)
+		return
 	}
 
-	// 5) Print the resulting list in table format.
-	printList(list)
-
-	// 6) Save the current to-do list back to the same JSON file.
-	if err := saveJSON(list, *out); err != nil {
-		fmt.Fprintln(os.Stderr, "failed to save JSON:", err)
-		os.Exit(1)
+	// ADD MODE: create a new to-do.
+	if strings.TrimSpace(*desc) != "" {
+		if _, err := addTodo(&list, *desc, Status(*status)); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		printList(list)
+		if err := saveJSON(list, *out); err != nil {
+			fmt.Fprintln(os.Stderr, "failed to save JSON:", err)
+			os.Exit(1)
+		}
+		fmt.Println("\nSaved to:", *out)
+		return
 	}
 
-	// 7) Confirm successful save to user.
-	fmt.Println("\nSaved to:", *out)
+	// Invalid combination of flags: show help.
+	usage()
+	fmt.Println("\nExamples:")
+	fmt.Println("  go run . -list")
+	fmt.Println("  go run . -add \"Buy milk\" -status started")
+	fmt.Println("  go run . -update 3 -newdesc \"Buy oat milk\"")
+	fmt.Println("  go run . -delete 2")
 }
