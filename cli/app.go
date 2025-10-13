@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,7 +18,7 @@ type App struct{}
 // New constructs a default App instance.
 func New() *App { return &App{} }
 
-// usage prints help text and includes info about global logging flags.
+// usage prints help text and includes info about global logging/trace flags.
 func usage() {
 	fmt.Fprintf(os.Stderr, `Todo-CLI
 
@@ -29,13 +30,15 @@ Usage:
   go run . -update <id> -newdesc "<new description>" [-out todos.json]
   go run . -delete <id> [-out todos.json]
 
-Global flags (parsed before others):
-  -logtext    Use plain text logs instead of JSON (for local debugging)
+Global flags (parsed before others in main):
+  -logtext              Use plain text logs instead of JSON
+  -traceid <value>      Provide an external TraceID (overrides auto-generated)
+  --traceid=<value>     Alternate form
 `)
 }
 
 // Run parses CLI flags and executes the requested command.
-func (a *App) Run(args []string) error {
+func (a *App) Run(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("todo", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
@@ -53,14 +56,14 @@ func (a *App) Run(args []string) error {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
-		slog.Error("flag parsing failed", "error", err)
+		slog.ErrorContext(ctx, "flag parsing failed", "error", err)
 		return err
 	}
 
 	// Load existing to-dos from file.
-	list, err := todo.Load(*out)
+	list, err := todo.Load(ctx, *out)
 	if err != nil {
-		slog.Error("failed to load todos", "error", err, "path", *out)
+		slog.ErrorContext(ctx, "failed to load todos", "error", err, "path", *out)
 		return err
 	}
 
@@ -73,33 +76,33 @@ func (a *App) Run(args []string) error {
 	case *deleteID > 0:
 		list, err = todo.Delete(list, *deleteID)
 		if err != nil {
-			slog.Error("delete failed", "error", err, "id", *deleteID)
+			slog.ErrorContext(ctx, "delete failed", "error", err, "id", *deleteID)
 			return err
 		}
 		PrintList(list)
-		return todo.Save(list, *out)
+		return todo.Save(ctx, list, *out)
 
 	case *updateID > 0:
 		if strings.TrimSpace(*newDesc) == "" {
 			err := errors.New("-newdesc is required when using -update")
-			slog.Error("update failed", "error", err, "id", *updateID)
+			slog.ErrorContext(ctx, "update failed: missing -newdesc", "error", err, "id", *updateID)
 			return err
 		}
 		list, err = todo.UpdateDescription(list, *updateID, *newDesc)
 		if err != nil {
-			slog.Error("update failed", "error", err, "id", *updateID)
+			slog.ErrorContext(ctx, "update failed", "error", err, "id", *updateID)
 			return err
 		}
 		PrintList(list)
-		return todo.Save(list, *out)
+		return todo.Save(ctx, list, *out)
 
 	case strings.TrimSpace(*desc) != "":
 		if _, err := todo.Add(&list, *desc, todo.Status(*status)); err != nil {
-			slog.Error("add failed", "error", err)
+			slog.ErrorContext(ctx, "add failed", "error", err)
 			return err
 		}
 		PrintList(list)
-		return todo.Save(list, *out)
+		return todo.Save(ctx, list, *out)
 
 	default:
 		usage()
