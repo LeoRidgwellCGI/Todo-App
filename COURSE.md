@@ -4,15 +4,15 @@ This project is to create a to-do app which allows users to create a list of to-
 A to-do item should include a description and a status of "not started", "started", or "completed". Users should be able to display a list of all to-do items including their statuses, and should be able to update a to-do item to change its status or delete it entirely. Feel free to add any additional functionality if you want.
 
 # Course Instructions
-1) Basic CLI application
-- Create a command line application that uses flags to accept a to-do item adds it to an empty list of to-do items and prints the list to console
-- After printing the list of to-do items, save them to a file on disk
-- When the application starts, load all to-do items from disk before adding new item
-- Allow the user to update the description of a to-do item or delete it
+1) ✅ Basic CLI application
+- ✅ Create a command line application that uses flags to accept a to-do item adds it to an empty list of to-do items and prints the list to console
+- ✅ After printing the list of to-do items, save them to a file on disk
+- ✅ When the application starts, load all to-do items from disk before adding new item
+- ✅ Allow the user to update the description of a to-do item or delete it
 2) Advanced functionality
-- Use the "log/slog" structured logging package to log errors and when data is saved to disk
+- ✅ Use the "log/slog" structured logging package to log errors and when data is saved to disk
 - Use the "context" package to add a TraceID to enable traceability of calls through the solution by adding it to all logs
-- Separate the core todo store logic into a different package/module to main/CLI code
+- ✅ Separate the core todo store logic into a different package/module to main/CLI code
 - Write unit tests to cover usefully testable code
 - Use the "os/signal" package and ensure that the application only exits when it receives the interrupt signal (ctrl+c)
 3) API
