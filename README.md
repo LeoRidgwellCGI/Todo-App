@@ -45,6 +45,8 @@ Run:
 go test ./
 ```
 
+---
+
 ## Usage
 
 ### Commands
