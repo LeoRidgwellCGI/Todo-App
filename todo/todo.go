@@ -7,7 +7,14 @@ import (
 	"time"
 )
 
-// Status represents the current progress of a to-do item.
+//
+// todo/todo.go (package todo)
+// ---------------------------
+// Domain model and core operations for to-do items.
+// No I/O or logging here — just state changes and validation.
+//
+
+// Status represents the state of a to-do item.
 type Status string
 
 const (
@@ -16,17 +23,18 @@ const (
 	StatusCompleted  Status = "completed"
 )
 
-// Validate ensures that the given status is valid.
+// Validate ensures the status is one of the allowed values (case-insensitive).
 func (s Status) Validate() error {
 	switch Status(strings.ToLower(string(s))) {
 	case StatusNotStarted, StatusStarted, StatusCompleted:
 		return nil
 	default:
-		return fmt.Errorf("invalid status: %q", s)
+		return fmt.Errorf("invalid status: %q (allowed: %q, %q, %q)", s, StatusNotStarted, StatusStarted, StatusCompleted)
 	}
 }
 
-// Item represents a single to-do entry.
+// Item is the domain entity persisted in JSON.
+// ID is a simple integer; CreatedAt is stored as RFC3339 in the JSON.
 type Item struct {
 	ID          int       `json:"id"`
 	Description string    `json:"description"`
@@ -34,7 +42,8 @@ type Item struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// getNextID returns the next unique ID.
+// getNextID returns the next max(ID)+1 for the given list.
+// This is sufficient for a single-process CLI demo.
 func getNextID(list []Item) int {
 	max := 0
 	for _, t := range list {
@@ -45,7 +54,8 @@ func getNextID(list []Item) int {
 	return max + 1
 }
 
-// Add adds a new item to the list.
+// Add validates input and appends a new item to the list.
+// Returns the created item or an error on invalid input.
 func Add(list *[]Item, desc string, status Status) (Item, error) {
 	desc = strings.TrimSpace(desc)
 	if desc == "" {
@@ -61,11 +71,13 @@ func Add(list *[]Item, desc string, status Status) (Item, error) {
 		Status:      Status(strings.ToLower(string(status))),
 		CreatedAt:   time.Now(),
 	}
+
 	*list = append(*list, item)
 	return item, nil
 }
 
-// UpdateDescription modifies the description of an item by ID.
+// UpdateDescription finds an item by id and replaces its Description.
+// Returns a new slice (copy-on-write style) to make the mutation explicit.
 func UpdateDescription(list []Item, id int, newDesc string) ([]Item, error) {
 	newDesc = strings.TrimSpace(newDesc)
 	if newDesc == "" {
@@ -80,10 +92,11 @@ func UpdateDescription(list []Item, id int, newDesc string) ([]Item, error) {
 	return list, fmt.Errorf("no to-do with id %d", id)
 }
 
-// Delete removes an item by ID.
+// Delete removes an item by id. If the id does not exist, returns an error.
+// Returns the shortened slice to the caller.
 func Delete(list []Item, id int) ([]Item, error) {
-	for i, t := range list {
-		if t.ID == id {
+	for i := range list {
+		if list[i].ID == id {
 			return append(list[:i], list[i+1:]...), nil
 		}
 	}

@@ -8,53 +8,72 @@ import (
 	"os/signal"
 	"strings"
 
-	"todo-cli/cli"
-	"todo-cli/trace"
+	// Local packages
+	"todo-app/cli"
+	"todo-app/trace"
 )
 
-// stripGlobalFlags pulls out -logtext|--logtext and -traceid/--traceid/--traceid=<val>
-// so we can configure logging before passing the remaining args to the CLI.
+//
+// main.go (package main)
+// ----------------------
+// This is the executable entrypoint for Todo-App.
+// Responsibilities:
+//  1) Parse *global* flags that affect logging style and the TraceID before any subcommand runs.
+//  2) Create a context that cancels on SIGINT (Ctrl+C).
+//  3) Generate or accept an external TraceID and attach it to all logs.
+//  4) Run the CLI logic (cli.App) while keeping the process alive until Ctrl+C.
+//
+
+// stripGlobalFlags extracts global flags that must be handled before the CLI flagset.
+// Recognized flags:
+//   - -logtext / --logtext     -> switch from JSON logs to human-readable text logs
+//   - -traceid <val> / --traceid <val> / --traceid=<val>  -> provide an external trace id
+//
+// The function returns (remainingArgs, useTextLogger, providedTraceID).
 func stripGlobalFlags(args []string) (clean []string, useText bool, traceID string) {
 	clean = make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 
-		// Handle -logtext / --logtext (boolean, no value)
+		// Boolean logging style flag
 		if a == "-logtext" || a == "--logtext" {
 			useText = true
 			continue
 		}
 
-		// Handle --traceid=<value>
+		// Long form with equals: --traceid=VALUE
 		if strings.HasPrefix(a, "--traceid=") {
 			traceID = strings.TrimPrefix(a, "--traceid=")
 			continue
 		}
 
-		// Handle -traceid <value> or --traceid <value>
+		// Space-separated forms: -traceid VALUE or --traceid VALUE
 		if a == "-traceid" || a == "--traceid" {
 			if i+1 < len(args) {
 				traceID = args[i+1]
-				i++ // consume the value
+				i++ // consume value
 			}
 			continue
 		}
 
-		// Otherwise, keep the arg
+		// Unhandled: keep arg
 		clean = append(clean, a)
 	}
 	return clean, useText, traceID
 }
 
 func main() {
-	// Parse global logging/trace flags first.
+	// 1) Parse global flags from os.Args. We do this *before* CLI flag parsing
+	// so we can configure logging (JSON vs text) and establish a TraceID early.
 	args, useText, providedTrace := stripGlobalFlags(os.Args[1:])
 
-	// Create a base context that cancels on Ctrl+C (SIGINT).
+	// 2) Create a signal-aware context that is canceled on SIGINT (Ctrl+C).
+	//    This lets downstream code optionally react to cancellation when needed.
 	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	// Add a TraceID to the context (use provided when given).
+	// 3) Create a context that also carries a TraceID for end-to-end logging.
+	//    If the user provided one via -traceid/--traceid, we use it; otherwise we generate one.
 	var ctx context.Context
 	var traceID string
 	if providedTrace != "" {
@@ -63,7 +82,7 @@ func main() {
 		ctx, traceID = trace.New(sigCtx)
 	}
 
-	// Configure a global logger and stamp the TraceID onto it.
+	// Configure slog globally. We attach the trace_id so all logs include it.
 	var handler slog.Handler
 	if useText {
 		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
@@ -73,32 +92,33 @@ func main() {
 	logger := slog.New(handler).With(slog.String("trace_id", traceID))
 	slog.SetDefault(logger)
 
-	// Run the CLI in a goroutine so the process can stay alive.
+	// 4) Run the CLI in a goroutine so we can keep the process alive until Ctrl+C.
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- cli.New().Run(ctx, args)
 	}()
 
+	// We non-blockingly read the CLI result. Whether it fails or succeeds,
+	// the process does not exit until user presses Ctrl+C.
 	var runErr error
-	// Collect the CLI result (if any), but DO NOT exit yet.
 	select {
 	case runErr = <-errCh:
 		if runErr != nil {
 			slog.ErrorContext(ctx, "cli run failed", "error", runErr)
-			// Also echo a human-friendly line:
+			// Also print a human-friendly message
 			fmt.Fprintln(os.Stderr, runErr)
 		} else {
 			slog.InfoContext(ctx, "cli run completed")
 		}
 	default:
-		// CLI still running; that's fine. We'll still only exit on Ctrl+C below.
+		// CLI still running (fine) — we'll still wait for Ctrl+C below.
 	}
 
-	// Inform the user and wait for Ctrl+C.
-	fmt.Fprintln(os.Stderr, "Press Ctrl+C to exit...")
-	<-sigCtx.Done() // block until SIGINT
+	// Inform user and then wait for Ctrl+C to exit.
+	fmt.Fprintln(os.Stderr, "Todo-App is running. Press Ctrl+C to exit...")
+	<-sigCtx.Done()
 
-	// Graceful shutdown point.
+	// Graceful exit code: 1 if CLI returned an error, else 0.
 	if runErr != nil {
 		os.Exit(1)
 	}

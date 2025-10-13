@@ -1,3 +1,3 @@
-module todo-cli
+module todo-app
 
 go 1.25.1
