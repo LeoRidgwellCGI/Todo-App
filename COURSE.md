@@ -1,8 +1,9 @@
+# Course Info
 This project is to create a to-do app which allows users to create a list of to-do tasks. It is intended for you to use a range of different techniques and features of Golang and tasks followed from top to bottom, building up the application as you go. Don't be afraid to set aside your design at the end of a step if the next step would require massive refactor - it is often simpler to design an application from a clean page and copy in useful code.
 
 A to-do item should include a description and a status of "not started", "started", or "completed". Users should be able to display a list of all to-do items including their statuses, and should be able to update a to-do item to change its status or delete it entirely. Feel free to add any additional functionality if you want.
 
-
+# Course Instructions
 1) Basic CLI application
 - Create a command line application that uses flags to accept a to-do item adds it to an empty list of to-do items and prints the list to console
 - After printing the list of to-do items, save them to a file on disk
@@ -24,6 +25,7 @@ A to-do item should include a description and a status of "not started", "starte
 - Use the Actor/Communicating Sequential Processes (CSP) pattern to support concurrent reads and concurrent safe write
 - Use Parallel tests to validate that the solution is concurrent safe
 
+# Potential Inprovements
 Further work:
 These tasks are designed to provide you with exercises beyond the end of the the academy course and are more complicated/involved, with less explanation as to how to execute them:
 

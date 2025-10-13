@@ -1,2 +1,2 @@
-# golangtraining
-Repo for Go Lang Training
+# Go Lang Training Course Repo
+Repo for Go Lang Training Course Content
