@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Status represents the state of a to-do item.
+// Status represents the current progress of a to-do item.
 type Status string
 
 const (
@@ -16,7 +16,7 @@ const (
 	StatusCompleted  Status = "completed"
 )
 
-// Validate checks whether the status value is valid.
+// Validate ensures that the given status is valid.
 func (s Status) Validate() error {
 	switch Status(strings.ToLower(string(s))) {
 	case StatusNotStarted, StatusStarted, StatusCompleted:
@@ -26,7 +26,7 @@ func (s Status) Validate() error {
 	}
 }
 
-// Item represents a single to-do item.
+// Item represents a single to-do entry.
 type Item struct {
 	ID          int       `json:"id"`
 	Description string    `json:"description"`
@@ -34,7 +34,7 @@ type Item struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// getNextID returns the next available ID.
+// getNextID returns the next unique ID.
 func getNextID(list []Item) int {
 	max := 0
 	for _, t := range list {
@@ -65,7 +65,7 @@ func Add(list *[]Item, desc string, status Status) (Item, error) {
 	return item, nil
 }
 
-// UpdateDescription changes the description of an item by ID.
+// UpdateDescription modifies the description of an item by ID.
 func UpdateDescription(list []Item, id int, newDesc string) ([]Item, error) {
 	newDesc = strings.TrimSpace(newDesc)
 	if newDesc == "" {

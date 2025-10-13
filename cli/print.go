@@ -9,7 +9,7 @@ import (
 	"todo-cli/todo"
 )
 
-// PrintList displays the list of items in a tabular format.
+// PrintList displays to-dos in a neatly formatted table.
 func PrintList(list []todo.Item) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(w, "ID\tDESCRIPTION\tSTATUS\tCREATED")

@@ -4,19 +4,20 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"todo-cli/todo"
 )
 
-// App encapsulates configuration and behavior for the CLI.
+// App encapsulates CLI configuration and behavior.
 type App struct{}
 
-// New constructs a default App.
+// New constructs a default App instance.
 func New() *App { return &App{} }
 
-// usage prints help text describing how to use the CLI.
+// usage prints help text and includes info about global logging flags.
 func usage() {
 	fmt.Fprintf(os.Stderr, `Todo-CLI
 
@@ -27,10 +28,13 @@ Usage:
   go run . -add "<description>" [-status <not started|started|completed>] [-out todos.json]
   go run . -update <id> -newdesc "<new description>" [-out todos.json]
   go run . -delete <id> [-out todos.json]
+
+Global flags (parsed before others):
+  -logtext    Use plain text logs instead of JSON (for local debugging)
 `)
 }
 
-// Run parses flags and performs the requested action.
+// Run parses CLI flags and executes the requested command.
 func (a *App) Run(args []string) error {
 	fs := flag.NewFlagSet("todo", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -49,58 +53,61 @@ func (a *App) Run(args []string) error {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
+		slog.Error("flag parsing failed", "error", err)
 		return err
 	}
 
-	// Load existing items
+	// Load existing to-dos from file.
 	list, err := todo.Load(*out)
 	if err != nil {
-		return fmt.Errorf("failed to load JSON: %w", err)
+		slog.Error("failed to load todos", "error", err, "path", *out)
+		return err
 	}
 
-	// LIST MODE
-	if *listOnly && *desc == "" && *updateID == 0 && *deleteID == 0 {
+	// Handle commands.
+	switch {
+	case *listOnly:
 		PrintList(list)
 		return nil
-	}
 
-	// DELETE MODE
-	if *deleteID > 0 {
+	case *deleteID > 0:
 		list, err = todo.Delete(list, *deleteID)
 		if err != nil {
+			slog.Error("delete failed", "error", err, "id", *deleteID)
 			return err
 		}
 		PrintList(list)
 		return todo.Save(list, *out)
-	}
 
-	// UPDATE MODE
-	if *updateID > 0 {
+	case *updateID > 0:
 		if strings.TrimSpace(*newDesc) == "" {
-			return errors.New("-newdesc is required when using -update")
+			err := errors.New("-newdesc is required when using -update")
+			slog.Error("update failed", "error", err, "id", *updateID)
+			return err
 		}
 		list, err = todo.UpdateDescription(list, *updateID, *newDesc)
 		if err != nil {
+			slog.Error("update failed", "error", err, "id", *updateID)
 			return err
 		}
 		PrintList(list)
 		return todo.Save(list, *out)
-	}
 
-	// ADD MODE
-	if strings.TrimSpace(*desc) != "" {
+	case strings.TrimSpace(*desc) != "":
 		if _, err := todo.Add(&list, *desc, todo.Status(*status)); err != nil {
+			slog.Error("add failed", "error", err)
 			return err
 		}
 		PrintList(list)
 		return todo.Save(list, *out)
-	}
 
-	usage()
-	fmt.Println("\nExamples:")
-	fmt.Println("  go run . -list")
-	fmt.Println("  go run . -add \"Buy milk\" -status started")
-	fmt.Println("  go run . -update 3 -newdesc \"Buy oat milk\"")
-	fmt.Println("  go run . -delete 2")
-	return nil
+	default:
+		usage()
+		fmt.Println("\nExamples:")
+		fmt.Println("  go run . -list")
+		fmt.Println("  go run . -add \"Buy milk\" -status started")
+		fmt.Println("  go run . -update 3 -newdesc \"Buy oat milk\"")
+		fmt.Println("  go run . -delete 2")
+		return nil
+	}
 }
