@@ -1,8 +1,6 @@
 package todo
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestStatusValidate(t *testing.T) {
 	tests := []struct {
@@ -29,7 +27,6 @@ func TestStatusValidate(t *testing.T) {
 func TestAdd(t *testing.T) {
 	var list []Item
 
-	// OK add
 	it, err := Add(&list, "Buy milk", StatusNotStarted)
 	if err != nil {
 		t.Fatalf("Add() unexpected error: %v", err)
@@ -41,7 +38,6 @@ func TestAdd(t *testing.T) {
 		t.Fatalf("Add() list length = %d, want 1", len(list))
 	}
 
-	// Empty desc should error
 	if _, err := Add(&list, "   ", StatusNotStarted); err == nil {
 		t.Fatalf("Add() expected error for empty description")
 	}
@@ -60,12 +56,10 @@ func TestUpdateDescription(t *testing.T) {
 		t.Fatalf("UpdateDescription() description=%q want=%q", updated[1].Description, "Bravo")
 	}
 
-	// Missing item
 	if _, err := UpdateDescription(list, 3, "C"); err == nil {
 		t.Fatalf("UpdateDescription() expected error for missing id")
 	}
 
-	// Empty new description
 	if _, err := UpdateDescription(list, 1, "   "); err == nil {
 		t.Fatalf("UpdateDescription() expected error for empty new desc")
 	}

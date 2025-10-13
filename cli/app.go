@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"todo-cli/todo"
@@ -25,16 +26,41 @@ func usage() {
 Manage to-do items: list, add, update descriptions, or delete by ID.
 
 Usage:
-  go run . -list [-out todos.json]
-  go run . -add "<description>" [-status <not started|started|completed>] [-out todos.json]
-  go run . -update <id> -newdesc "<new description>" [-out todos.json]
-  go run . -delete <id> [-out todos.json]
+  go run . -list [-out out/todos.json]
+  go run . -add "<description>" [-status <not started|started|completed>] [-out out/todos.json]
+  go run . -update <id> -newdesc "<new description>" [-out out/todos.json]
+  go run . -delete <id> [-out out/todos.json]
+
+Notes:
+  * All output is written under ./out/. If you pass a different -out value,
+    it will be normalized to ./out/<basename>.
 
 Global flags (parsed before others in main):
   -logtext              Use plain text logs instead of JSON
   -traceid <value>      Provide an external TraceID (overrides auto-generated)
   --traceid=<value>     Alternate form
 `)
+}
+
+// normalizeOutPath forces paths to live under ./out by joining the basename
+// with the "out" directory, unless the first path segment is already "out".
+func normalizeOutPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		p = "todos.json"
+	}
+	clean := filepath.Clean(p)
+	// First segment check: convert to forward slashes for a simple split.
+	rel := strings.TrimLeft(filepath.ToSlash(clean), "/")
+	firstSeg := rel
+	if idx := strings.IndexByte(rel, '/'); idx >= 0 {
+		firstSeg = rel[:idx]
+	}
+	if firstSeg == "out" {
+		return clean
+	}
+	// Always put file under ./out using its basename.
+	return filepath.Join("out", filepath.Base(clean))
 }
 
 // Run parses CLI flags and executes the requested command.
@@ -47,8 +73,8 @@ func (a *App) Run(ctx context.Context, args []string) error {
 	status := fs.String("status", string(todo.StatusNotStarted), "status for the new to-do (not started|started|completed)")
 	updateID := fs.Int("update", 0, "ID of the to-do to update (description only)")
 	newDesc := fs.String("newdesc", "", "new description for the to-do when using -update")
+	out := fs.String("out", "out/todos.json", "path to the JSON file to read/write (forced under ./out)")
 	deleteID := fs.Int("delete", 0, "ID of the to-do to delete")
-	out := fs.String("out", "todos.json", "path to the JSON file to read/write")
 
 	fs.Usage = usage
 
@@ -60,10 +86,13 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		return err
 	}
 
+	// Normalize output path to ensure it's under ./out.
+	outPath := normalizeOutPath(*out)
+
 	// Load existing to-dos from file.
-	list, err := todo.Load(ctx, *out)
+	list, err := todo.Load(ctx, outPath)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to load todos", "error", err, "path", *out)
+		slog.ErrorContext(ctx, "failed to load todos", "error", err, "path", outPath)
 		return err
 	}
 
@@ -80,7 +109,7 @@ func (a *App) Run(ctx context.Context, args []string) error {
 			return err
 		}
 		PrintList(list)
-		return todo.Save(ctx, list, *out)
+		return todo.Save(ctx, list, outPath)
 
 	case *updateID > 0:
 		if strings.TrimSpace(*newDesc) == "" {
@@ -94,7 +123,7 @@ func (a *App) Run(ctx context.Context, args []string) error {
 			return err
 		}
 		PrintList(list)
-		return todo.Save(ctx, list, *out)
+		return todo.Save(ctx, list, outPath)
 
 	case strings.TrimSpace(*desc) != "":
 		if _, err := todo.Add(&list, *desc, todo.Status(*status)); err != nil {
@@ -102,7 +131,7 @@ func (a *App) Run(ctx context.Context, args []string) error {
 			return err
 		}
 		PrintList(list)
-		return todo.Save(ctx, list, *out)
+		return todo.Save(ctx, list, outPath)
 
 	default:
 		usage()

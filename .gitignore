@@ -1,7 +1,3 @@
 *.exe
-*.csv
-todos.csv
-test_todos.csv
-*.json
-todos.json
-test_todos.json
+/out
+/cli/out

@@ -11,7 +11,7 @@ import (
 )
 
 // captureStdout returns a function that restores stdout and the captured output.
-// Call the returned function exactly once to both restore stdout and get the output.
+// Call the returned function exactly once.
 func captureStdout(t *testing.T) func() string {
 	t.Helper()
 	orig := os.Stdout
@@ -32,7 +32,6 @@ func captureStdout(t *testing.T) func() string {
 }
 
 func TestPrintList(t *testing.T) {
-	// Start capturing
 	getOutput := captureStdout(t)
 
 	items := []todo.Item{
@@ -41,15 +40,12 @@ func TestPrintList(t *testing.T) {
 	}
 	PrintList(items)
 
-	// Stop capturing and get the output (also restores stdout)
 	out := getOutput()
 
-	// tabwriter expands tabs to spaces; assert with flexible whitespace.
 	headerRe := regexp.MustCompile(`(?m)^ID\s+DESCRIPTION\s+STATUS\s+CREATED$`)
 	if !headerRe.MatchString(out) {
 		t.Fatalf("header not found or malformed in output:\n%s", out)
 	}
-
 	if !regexp.MustCompile(`Task A`).MatchString(out) || !regexp.MustCompile(`Task B`).MatchString(out) {
 		t.Fatalf("items not found in output:\n%s", out)
 	}

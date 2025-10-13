@@ -39,7 +39,6 @@ func TestNewWithID(t *testing.T) {
 		t.Fatalf("From(ctx)=%q ok=%v", got, ok)
 	}
 
-	// Empty should fallback to New()
 	ctx2, id2 := NewWithID(base, "")
 	if id2 == "" {
 		t.Fatalf("NewWithID with empty id should generate one")

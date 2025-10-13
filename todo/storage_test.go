@@ -12,13 +12,11 @@ func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "todos.json")
 
-	// Start with empty
 	items := []Item{}
 	if err := Save(ctx, items, path); err != nil {
 		t.Fatalf("Save(empty) error: %v", err)
 	}
 
-	// Add some data and save
 	items = append(items, Item{ID: 1, Description: "Alpha", Status: StatusNotStarted})
 	items = append(items, Item{ID: 2, Description: "Beta", Status: StatusStarted})
 	if err := Save(ctx, items, path); err != nil {
@@ -28,7 +26,6 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("Save() did not create file: %v", err)
 	}
 
-	// Load and assert
 	got, err := Load(ctx, path)
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)

@@ -7,16 +7,28 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 )
 
-// Save writes the current list to disk and logs a structured event (with trace_id).
+// ensureParentDir ensures the directory for a file path exists.
+func ensureParentDir(path string) error {
+	dir := filepath.Dir(path)
+	return os.MkdirAll(dir, 0o755)
+}
+
+// Save writes the current list to disk (under ./out) and logs a structured event.
 func Save(ctx context.Context, list []Item, path string) error {
+	if err := ensureParentDir(path); err != nil {
+		slog.ErrorContext(ctx, "failed to create output directory", "error", err, "path", path)
+		return err
+	}
+
 	data, err := json.MarshalIndent(list, "", "  ")
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal todos", "error", err, "path", path)
 		return err
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		slog.ErrorContext(ctx, "failed to save todos", "error", err, "path", path)
 		return err
 	}
