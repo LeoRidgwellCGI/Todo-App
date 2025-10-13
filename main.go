@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
@@ -71,20 +72,53 @@ func printList(list []Todo) {
 	_ = w.Flush()
 }
 
+// saveCSV writes the list of todos to a CSV file at the given path.
+// The file will contain a header row followed by one row per to-do item.
+func saveCSV(list []Todo, path string) error {
+	// Create (or truncate) the target file. Ensure the directory exists.
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	// Header
+	if err := w.Write([]string{"id", "description", "status", "created"}); err != nil {
+		return err
+	}
+	// Rows
+	for _, t := range list {
+		row := []string{
+			fmt.Sprintf("%d", t.ID),
+			t.Description,
+			string(t.Status),
+			t.CreatedAt.Format(time.RFC3339),
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
 // usage prints help text describing how to use the CLI.
 func usage() {
 	fmt.Fprintf(os.Stderr, `To-do CLI\n\n`)
-	fmt.Fprintf(os.Stderr, "Adds a single to-do item to an in-memory (empty) list and prints the list.\n\n")
-	fmt.Fprintf(os.Stderr, "Usage:\n  go run . -add \"<description>\" [-status <not started|started|completed>]\n\n")
+	fmt.Fprintf(os.Stderr, "Adds a single to-do item to an in-memory (empty) list, prints it, then saves to CSV.\n\n")
+	fmt.Fprintf(os.Stderr, "Usage:\n  go run . -add \"<description>\" [-status <not started|started|completed>] [-out todos.csv]\n\n")
 	flag.PrintDefaults()
 }
 
 // main is the entry point of the CLI application.
-// It parses command-line flags, adds a to-do item, and prints the list.
+// It parses command-line flags, adds a to-do item, prints the list, and saves it to CSV.
 func main() {
 	var (
 		desc   = flag.String("add", "", "description for the to-do item to add")
 		status = flag.String("status", string(StatusNotStarted), "status for the new to-do (not started|started|completed)")
+		out    = flag.String("out", "todos.csv", "path to the CSV file to write")
 	)
 	flag.Usage = usage
 	flag.Parse()
@@ -106,4 +140,12 @@ func main() {
 
 	// Print the resulting list
 	printList(list)
+
+	// Save the list to CSV
+	if err := saveCSV(list, *out); err != nil {
+		fmt.Fprintln(os.Stderr, "failed to save CSV:", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("\nSaved to:", *out)
 }
