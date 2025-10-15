@@ -56,24 +56,40 @@ func getNextID(list []Item) int {
 
 // Add validates input and appends a new item to the list.
 // Returns the created item or an error on invalid input.
-func Add(list *[]Item, desc string, status Status) (Item, error) {
+
+// Add creates a new item and returns the updated slice plus the created item.
+// It follows the mutation pattern used by the other functions (take a slice, return a slice).
+func Add(list []Item, desc string, status Status) ([]Item, Item, error) {
 	desc = strings.TrimSpace(desc)
 	if desc == "" {
-		return Item{}, errors.New("description cannot be empty")
+		return list, Item{}, errors.New("description cannot be empty")
 	}
 	if err := status.Validate(); err != nil {
-		return Item{}, err
+		return list, Item{}, err
 	}
-
 	item := Item{
-		ID:          getNextID(*list),
+		ID:          getNextID(list),
 		Description: desc,
 		Status:      Status(strings.ToLower(string(status))),
 		CreatedAt:   time.Now(),
 	}
+	list = append(list, item)
+	return list, item, nil
+}
 
-	*list = append(*list, item)
-	return item, nil
+// UpdateStatus finds an item by id and updates its Status.
+// Returns a new slice (copy-on-write style) to make the mutation explicit.
+func UpdateStatus(list []Item, id int, s Status) ([]Item, error) {
+	if err := s.Validate(); err != nil {
+		return list, err
+	}
+	for i := range list {
+		if list[i].ID == id {
+			list[i].Status = Status(strings.ToLower(string(s)))
+			return list, nil
+		}
+	}
+	return list, fmt.Errorf("no to-do with id %d", id)
 }
 
 // UpdateDescription finds an item by id and replaces its Description.

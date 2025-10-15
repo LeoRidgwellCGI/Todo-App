@@ -105,18 +105,16 @@ func main() {
 	case runErr = <-errCh:
 		if runErr != nil {
 			slog.ErrorContext(ctx, "cli run failed", "error", runErr)
-			// Also print a human-friendly message
 			fmt.Fprintln(os.Stderr, runErr)
 		} else {
 			slog.InfoContext(ctx, "cli run completed")
 		}
+	case <-sigCtx.Done():
+		// User requested shutdown (Ctrl+C)
+		fmt.Fprintln(os.Stderr, "Shutting down...")
 	default:
 		// CLI still running (fine) — we'll still wait for Ctrl+C below.
 	}
-
-	// Inform user and then wait for Ctrl+C to exit.
-	fmt.Fprintln(os.Stderr, "Todo-App is running. Press Ctrl+C to exit...")
-	<-sigCtx.Done()
 
 	// Graceful exit code: 1 if CLI returned an error, else 0.
 	if runErr != nil {

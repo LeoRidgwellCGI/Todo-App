@@ -96,11 +96,12 @@ func TestNormalizeOutPath(t *testing.T) {
 		{"nested/dir/abc.json", "out/abc.json"},
 	}
 	for _, tt := range tests {
-		got := normalizeOutPath(tt.in)
-		// Convert to forward slashes so assertions pass on Windows as well.
-		got = filepath.ToSlash(got)
-		if got != tt.want {
-			t.Fatalf("normalizeOutPath(%q) = %q, want %q", tt.in, got, tt.want)
-		}
+		t.Run(tt.in, func(t *testing.T) {
+			got := normalizeOutPath(tt.in)
+			got = filepath.ToSlash(got)
+			if got != tt.want {
+				t.Fatalf("normalizeOutPath(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
 	}
 }

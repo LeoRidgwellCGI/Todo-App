@@ -1,3 +1,4 @@
+// NOTE: Simple stdlib/glue coverage; tests kept minimal per guidance.
 package cli
 
 import (

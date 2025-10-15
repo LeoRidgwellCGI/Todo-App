@@ -103,8 +103,38 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		return err
 	}
 
+	// Safely read flag values once to avoid repeated pointer dereferencing.
+	listMode := false
+	if listOnly != nil {
+		listMode = *listOnly
+	}
+	descVal := ""
+	if desc != nil {
+		descVal = strings.TrimSpace(*desc)
+	}
+	statusVal := todo.StatusNotStarted
+	if status != nil {
+		statusVal = todo.Status(*status)
+	}
+	updateIDVal := 0
+	if updateID != nil {
+		updateIDVal = *updateID
+	}
+	newDescVal := ""
+	if newDesc != nil {
+		newDescVal = strings.TrimSpace(*newDesc)
+	}
+	deleteIDVal := 0
+	if deleteID != nil {
+		deleteIDVal = *deleteID
+	}
+	outVal := "out/todos.json"
+	if out != nil {
+		outVal = *out
+	}
+
 	// Map the chosen output file to live under ./out/
-	outPath := normalizeOutPath(*out)
+	outPath := normalizeOutPath(outVal)
 
 	// Load existing items before applying any mutations.
 	list, err := todo.Load(ctx, outPath)
@@ -113,49 +143,47 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		return err
 	}
 
+	// Command routing
+
 	// Command routing — mutually exclusive modes for simplicity.
 	switch {
-	case *listOnly:
-		// Just print existing items in a table.
+	case listMode:
 		PrintList(list)
 		return nil
 
-	case *deleteID > 0:
-		// Delete by ID then save changes.
-		list, err = todo.Delete(list, *deleteID)
+	case descVal != "":
+		var it todo.Item
+		var err error
+		list, it, err = todo.Add(list, descVal, statusVal)
 		if err != nil {
-			slog.ErrorContext(ctx, "delete failed", "error", err, "id", *deleteID)
-			return err
-		}
-		PrintList(list)
-		return todo.Save(ctx, list, outPath)
-
-	case *updateID > 0:
-		// Update only the description for simplicity.
-		if strings.TrimSpace(*newDesc) == "" {
-			err := errors.New("-newdesc is required when using -update")
-			slog.ErrorContext(ctx, "update failed: missing -newdesc", "error", err, "id", *updateID)
-			return err
-		}
-		list, err = todo.UpdateDescription(list, *updateID, *newDesc)
-		if err != nil {
-			slog.ErrorContext(ctx, "update failed", "error", err, "id", *updateID)
-			return err
-		}
-		PrintList(list)
-		return todo.Save(ctx, list, outPath)
-
-	case strings.TrimSpace(*desc) != "":
-		// Add a new item with optional -status, then save.
-		if _, err := todo.Add(&list, *desc, todo.Status(*status)); err != nil {
 			slog.ErrorContext(ctx, "add failed", "error", err)
+			return err
+		}
+		_ = it
+		PrintList(list)
+		return todo.Save(ctx, list, outPath)
+
+	case updateIDVal > 0 && newDescVal != "":
+		var err error
+		list, err = todo.UpdateDescription(list, updateIDVal, newDescVal)
+		if err != nil {
+			slog.ErrorContext(ctx, "update failed", "error", err)
+			return err
+		}
+		PrintList(list)
+		return todo.Save(ctx, list, outPath)
+
+	case deleteIDVal > 0:
+		var err error
+		list, err = todo.Delete(list, deleteIDVal)
+		if err != nil {
+			slog.ErrorContext(ctx, "delete failed", "error", err)
 			return err
 		}
 		PrintList(list)
 		return todo.Save(ctx, list, outPath)
 
 	default:
-		// No mode selected; show usage and examples.
 		usage()
 		fmt.Println("\nExamples:")
 		fmt.Println("  go run . -list")
