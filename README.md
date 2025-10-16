@@ -47,7 +47,7 @@ go test ./
 
 ---
 
-## Usage
+## CLI Usage
 
 ### Commands
 | Command                          | Description                                                       |
@@ -68,7 +68,16 @@ go test ./
 
 ---
 
-## Examples
+## API Usage
+
+### Routes
+| Routes                         | Description                                                         |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `coming soon`                  | Coming soon                                                         |
+
+---
+
+## CLI Examples
 
 Add a new task:
 ```bash
@@ -93,6 +102,30 @@ go run . -list
 Use text logs and a custom trace ID:
 ```bash
 go run . -logtext --traceid=my-trace-id -add "Try text logs"
+```
+
+---
+
+## API Examples
+
+Add a new task:
+```bash
+coming soon
+```
+
+Update a task:
+```bash
+coming soon
+```
+
+Delete a task:
+```bash
+coming soon
+```
+
+List tasks:
+```bash
+coming soon
 ```
 
 ---
