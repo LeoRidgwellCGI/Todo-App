@@ -59,6 +59,9 @@ func getNextID(list []Item) int {
 
 // Add creates a new item and returns the updated slice plus the created item.
 // It follows the mutation pattern used by the other functions (take a slice, return a slice).
+
+// Add creates a new item and returns the updated slice plus the created item.
+// It follows the mutation pattern used by the other functions (take a slice, return a slice).
 func Add(list []Item, desc string, status Status) ([]Item, Item, error) {
 	desc = strings.TrimSpace(desc)
 	if desc == "" {

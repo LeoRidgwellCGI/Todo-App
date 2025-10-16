@@ -2,6 +2,7 @@ package todo
 
 import "testing"
 
+// Status.Validate cases
 func TestStatusValidate(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -26,10 +27,11 @@ func TestStatusValidate(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 	cases := []struct {
-		name, desc string
-		status     Status
-		wantErr    bool
-		wantLen    int
+		name    string
+		desc    string
+		status  Status
+		wantErr bool
+		wantLen int
 	}{
 		{"ok_not_started", "Buy milk", StatusNotStarted, false, 1},
 		{"ok_started", "Ship parcel", StatusStarted, false, 1},
@@ -42,18 +44,18 @@ func TestAdd(t *testing.T) {
 			list, it, err := Add(list, tc.desc, tc.status)
 			if tc.wantErr {
 				if err == nil {
-					t.Fatalf("expected error")
+					t.Fatalf("Add() expected error")
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Fatalf("Add() unexpected error: %v", err)
 			}
 			if len(list) != tc.wantLen {
-				t.Fatalf("len=%d want %d", len(list), tc.wantLen)
+				t.Fatalf("Add() list length = %d, want %d", len(list), tc.wantLen)
 			}
 			if it.ID == 0 || it.Description == "" {
-				t.Fatalf("bad item: %+v", it)
+				t.Fatalf("Add() returned incomplete item: %+v", it)
 			}
 		})
 	}
@@ -64,7 +66,7 @@ func TestUpdateStatus(t *testing.T) {
 	cases := []struct {
 		name    string
 		id      int
-		s       Status
+		status  Status
 		wantErr bool
 	}{
 		{"ok_update", 1, StatusCompleted, false},
@@ -73,7 +75,7 @@ func TestUpdateStatus(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out, err := UpdateStatus(list, tc.id, tc.s)
+			out, err := UpdateStatus(list, tc.id, tc.status)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error")
@@ -83,8 +85,8 @@ func TestUpdateStatus(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if tc.id == 1 && out[0].Status != tc.s {
-				t.Fatalf("not updated: %+v", out[0])
+			if tc.id == 1 && out[0].Status != tc.status {
+				t.Fatalf("status not updated: %+v", out[0])
 			}
 		})
 	}
@@ -115,7 +117,7 @@ func TestUpdateDescription(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if out[0].Description != tc.newDesc {
-				t.Fatalf("not updated: %+v", out[0])
+				t.Fatalf("description not updated: %+v", out[0])
 			}
 		})
 	}

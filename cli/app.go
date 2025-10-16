@@ -150,7 +150,6 @@ func (a *App) Run(ctx context.Context, args []string) error {
 	case listMode:
 		PrintList(list)
 		return nil
-
 	case descVal != "":
 		var it todo.Item
 		var err error
@@ -162,7 +161,6 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		_ = it
 		PrintList(list)
 		return todo.Save(ctx, list, outPath)
-
 	case updateIDVal > 0 && newDescVal != "":
 		var err error
 		list, err = todo.UpdateDescription(list, updateIDVal, newDescVal)
@@ -172,7 +170,6 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		}
 		PrintList(list)
 		return todo.Save(ctx, list, outPath)
-
 	case deleteIDVal > 0:
 		var err error
 		list, err = todo.Delete(list, deleteIDVal)
@@ -182,7 +179,6 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		}
 		PrintList(list)
 		return todo.Save(ctx, list, outPath)
-
 	default:
 		usage()
 		fmt.Println("\nExamples:")
@@ -192,4 +188,5 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		fmt.Println("  go run . -delete 2")
 		return nil
 	}
+
 }
