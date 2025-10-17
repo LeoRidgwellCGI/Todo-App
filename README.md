@@ -40,8 +40,6 @@ To run directly in CLI mode:
 go run ./cmd/cli
 ```
 
----
-
 To build in CLI mode:
 ```bash
 go build -o bin/todo ./cmd/cli
@@ -64,7 +62,7 @@ go build -o bin/todo ./cmd/api
 ---
 
 ### Running / Building from Root
-Running / Building from Root (aka main.go) is no longer possible.
+Running / Building from Root (aka main.go) is no longer possible.  
 It will now display a warning and instructions on how to run / build in CLI or API mode.
 
 ---
