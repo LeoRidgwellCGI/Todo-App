@@ -23,22 +23,53 @@ All data is stored as JSON under the automatically created `./out/` directory.
 
 ---
 
-## Installation
+## Installation (All Modes)
 
-Clone and build:
+First, clone the Repo and CD into the directory:
 ```bash
 git clone https://github.com/leoridgwellcgi/todo-app.git
 cd todo-app
-go build -o todo-app
-```
-or run directly:
-```bash
-go run .
 ```
 
 ---
 
-## Testing
+## Running / Building (CLI Mode)
+
+To run directly in CLI mode:
+```bash
+go run ./cmd/cli
+```
+
+---
+
+To build in CLI mode:
+```bash
+go build -o bin/todo ./cmd/cli
+```
+
+---
+
+## Running / Building (API Mode)
+
+To directly in API mode:
+```bash
+go run ./cmd/api
+```
+
+To build in API mode:
+```bash
+go build -o bin/todo ./cmd/api
+```
+
+---
+
+### Running / Building from Root
+Running / Building from Root (aka main.go) is no longer possible.
+It will now display a warning and instructions on how to run / build in CLI or API mode.
+
+---
+
+## Testing (All Modes)
 
 Run:
 ```bash
@@ -47,7 +78,7 @@ go test ./
 
 ---
 
-## CLI Usage
+## Usage (CLI Mode)
 
 ### Commands
 | Command                          | Description                                                       |
@@ -68,7 +99,7 @@ go test ./
 
 ---
 
-## API Usage
+## Usage (API Mode)
 
 ### Routes
 | Routes                         | Description                                                         |
@@ -77,7 +108,7 @@ go test ./
 
 ---
 
-## CLI Examples
+## Examples (CLI Mode)
 
 Add a new task:
 ```bash
@@ -106,7 +137,7 @@ go run . -logtext --traceid=my-trace-id -add "Try text logs"
 
 ---
 
-## API Examples
+## Examples (API Mode)
 
 Add a new task:
 ```bash

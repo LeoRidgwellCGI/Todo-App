@@ -1,4 +1,4 @@
-package cli
+package cli_app
 
 import (
 	"context"
@@ -9,13 +9,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
+	"time"
 
 	// Domain / persistence package
 	"todo-app/todo"
 )
 
 //
-// cli/app.go (package cli)
+// app/cli_app.go (package cli_app)
 // ------------------------
 // This package owns user-facing command/flag handling. It DOES NOT do direct
 // business logic or I/O; instead it coordinates with the `todo` package.
@@ -26,10 +28,10 @@ import (
 //
 
 // App is a thin container for CLI configuration.
-type App struct{}
+type CLI_App struct{}
 
 // New constructs an App. Useful for future dependency injection.
-func New() *App { return &App{} }
+func New() *CLI_App { return &CLI_App{} }
 
 // usage prints human-readable help and includes documentation for global flags.
 func usage() {
@@ -55,6 +57,26 @@ Global flags (parsed before others in main):
 `)
 }
 
+// PrintList prints a simple fixed table to stdout.
+// We rely on tabwriter to align columns regardless of content width.
+// NOTE: stdout is for user-facing output; logs go to stderr via slog.
+func PrintList(list []todo.Item) {
+	// Create a writer that aligns columns based on tab stops.
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+
+	// Header line (columns are separated by tabs; tabwriter turns tabs into padding).
+	fmt.Fprintln(w, "ID\tDESCRIPTION\tSTATUS\tCREATED")
+
+	// Body rows
+	for _, t := range list {
+		// Time is formatted as RFC3339 for easy machine readability and consistency.
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", t.ID, t.Description, t.Status, t.CreatedAt.Format(time.RFC3339))
+	}
+
+	// Flush to ensure content is rendered even if buffers are not full.
+	_ = w.Flush()
+}
+
 // normalizeOutPath ensures the data file path is always under ./out/.
 // If user provides something like "/tmp/foo.json" or "something/bar.json",
 // we rewrite it to "out/<basename>" to keep all outputs local to the repo.
@@ -78,7 +100,7 @@ func normalizeOutPath(p string) string {
 
 // Run executes the CLI command flow using the provided context and args.
 // Returns an error for any failure (parsing, I/O, validation), which main() logs.
-func (a *App) Run(ctx context.Context, args []string) error {
+func (a *CLI_App) Run(ctx context.Context, args []string) error {
 	// Define the CLI flagset
 	fs := flag.NewFlagSet("todo-app", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
