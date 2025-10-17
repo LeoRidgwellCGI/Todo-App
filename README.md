@@ -1,6 +1,6 @@
 # Todo-App 📝
 
-A simple command-line To-Do List Manager built in Go.  
+A simple CLI & API To-Do List Manager built in Go.  
 Created by **Leo Ridgwell**.
 
 ---
