@@ -100,61 +100,99 @@ go test ./
 ## Usage (API Mode)
 
 ### Routes
-| Routes                         | Description                                                         |
-| ------------------------------ | ------------------------------------------------------------------- |
-| `coming soon`                  | Coming soon                                                         |
+| Routes                         | Description                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `get`                          | Get information about all tasks or a single task (See examples below)                     |
+| `add`                          | POST a header and description and add a new task (See examples below)                     |
+| `update`                       | POST a header and description and update an existing task (See examples below)            |
+| `delete`                       | POST a header and description and delete an existing task (See examples below)            |
 
 ---
 
 ## Examples (CLI Mode)
 
+List tasks:
+```bash
+go run ./cmd/cli -list
+```
+
 Add a new task:
 ```bash
-go run . -add "Write documentation"
+go run ./cmd/cli -add "Write documentation"
+```
+
+Set the status when adding a new task:
+```bash
+go run ./cmd/cli -add "Write docs" -status "started"
 ```
 
 Update a task:
 ```bash
-go run . -update 1 -newdesc "Write README file"
+go run ./cmd/cli -update 1 -newdesc "Write README file"
 ```
 
 Delete a task:
 ```bash
-go run . -delete 1
+go run ./cmd/cli -delete 1
 ```
 
-List tasks:
+Use a custom out path:
 ```bash
-go run . -list
+go run ./cmd/cli -add "Change out path" -out "test/todos2.json"
 ```
 
 Use text logs and a custom trace ID:
 ```bash
-go run . -logtext --traceid=my-trace-id -add "Try text logs"
+go run ./cmd/cli -logtext --traceid=my-trace-id -add "Try text logs"
 ```
 
 ---
 
 ## Examples (API Mode)
 
+Get all tasks:
+```bash
+curl -s localhost:8080/get
+```
+
+Get a single task:
+```bash
+curl -s 'localhost:8080/get?id=1'
+```
+
 Add a new task:
 ```bash
-coming soon
+curl -s -X POST localhost:8080/add \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"Buy milk"}'
+```
+
+Set the status when adding a new task:
+```bash
+curl -s -X POST localhost:8080/add \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"Buy milk","status":"started"}'
 ```
 
 Update a task:
 ```bash
-coming soon
+curl -s -X POST localhost:8080/update \
+  -H 'Content-Type: application/json' \
+  -d '{"id":1, "description":"Buy milk and eggs"}'
+```
+
+Update a task and status:
+```bash
+curl -s -X POST localhost:8080/update \
+  -H 'Content-Type: application/json' \
+  -d '{"id":1, "description":"Buy milk and eggs", "status":"started"}'
 ```
 
 Delete a task:
 ```bash
-coming soon
-```
-
-List tasks:
-```bash
-coming soon
+curl -s -X POST localhost:8080/delete \
+  -H 'Content-Type: application/json' \
+  -d '{"id":1}'
 ```
 
 ---

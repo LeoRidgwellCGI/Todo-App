@@ -21,9 +21,9 @@ A to-do item should include a description and a status of "not started", "starte
 - ✅ Write unit tests to cover usefully testable code
 - ✅ Use the "os/signal" package and ensure that the application only exits when it receives the interrupt signal (ctrl+c)
 
-## 3) API
-- Use ServeMux in the "net/http" package to expose json http endpoints: "/create", "/get", "/update", and "/delete"
-- Add a middleware to create a context with TraceID
+## 3) ✅ API
+- ✅ Use ServeMux in the "net/http" package to expose json http endpoints: "/create", "/get", "/update", and "/delete"
+- ✅ Add a middleware to create a context with TraceID
 
 ## 4) Web page
 - Use "http.FileServer" to serve a static page to a new "/about" endpoint
@@ -42,8 +42,8 @@ These tasks are designed to provide you with exercises beyond the end of the the
 ## - Repl (Read-eval-print loop)
 When the application runs it should ask the user to input text into the console to create, read, update, or delete list items in a loop.
 
-## - Multiple startups:
-Separate the cli, repl, and api functionality into separate main packages in different modules so that the application can be run as a cli OR a repl OR an api OR all of them together.
+## - ✅ Multiple startups:
+✅ Separate the cli, repl, and api functionality into separate main packages in different modules so that the application can be run as a cli OR a repl OR an api OR all of them together.
 
 ## - Multi User
 The API should include a user ID and support multiple users, each with their own to-do list.
