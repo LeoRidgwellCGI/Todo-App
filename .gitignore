@@ -1,4 +1,2 @@
 *.exe
 /out
-/cli_app/out
-/api_app/out
