@@ -3,7 +3,10 @@ package todo
 import "testing"
 
 // Status.Validate cases
-func TestStatusValidate(t *testing.T) {
+// TestTodo_StatusValidate ensures that Status.Validate correctly
+// accepts valid statuses and rejects invalid ones.
+// It covers all defined statuses and an invalid example.
+func TestTodo_StatusValidate(t *testing.T) {
 	cases := []struct {
 		name    string
 		status  Status
@@ -25,7 +28,11 @@ func TestStatusValidate(t *testing.T) {
 	}
 }
 
-func TestAdd(t *testing.T) {
+// TestTodo_Add verifies that adding items works correctly,
+// including validation of description and status.
+// It checks both successful additions and expected errors.
+// The test covers various scenarios including valid additions and error cases.
+func TestTodo_Add(t *testing.T) {
 	cases := []struct {
 		name    string
 		desc    string
@@ -61,7 +68,11 @@ func TestAdd(t *testing.T) {
 	}
 }
 
-func TestUpdateStatus(t *testing.T) {
+// TestTodo_UpdateStatus verifies that updating the status of to-do items works correctly,
+// including handling of invalid IDs and statuses.
+// It checks both successful updates and expected errors.
+// The test covers various scenarios including valid updates and error cases.
+func TestTodo_UpdateStatus(t *testing.T) {
 	list := []Item{{ID: 1, Description: "A", Status: StatusNotStarted}, {ID: 2, Description: "B", Status: StatusNotStarted}}
 	cases := []struct {
 		name    string
@@ -92,7 +103,11 @@ func TestUpdateStatus(t *testing.T) {
 	}
 }
 
-func TestUpdateDescription(t *testing.T) {
+// TestTodo_UpdateDescription verifies that updating the description of to-do items works correctly,
+// including handling of invalid IDs and empty descriptions.
+// It checks both successful updates and expected errors.
+// The test covers various scenarios including valid updates and error cases.
+func TestTodo_UpdateDescription(t *testing.T) {
 	list := []Item{{ID: 10, Description: "Old", Status: StatusNotStarted}}
 	cases := []struct {
 		name    string
@@ -123,7 +138,11 @@ func TestUpdateDescription(t *testing.T) {
 	}
 }
 
-func TestDelete(t *testing.T) {
+// TestTodo_Delete verifies that deleting to-do items works correctly,
+// including handling of invalid IDs.
+// It checks both successful deletions and expected errors.
+// The test covers various scenarios including valid deletions and error cases.
+func TestTodo_Delete(t *testing.T) {
 	list := []Item{{ID: 1, Description: "A", Status: StatusNotStarted}, {ID: 2, Description: "B", Status: StatusStarted}, {ID: 3, Description: "C", Status: StatusCompleted}}
 	cases := []struct {
 		name    string

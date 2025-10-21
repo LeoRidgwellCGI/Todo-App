@@ -21,7 +21,61 @@ type item struct {
 	CreatedAt   string `json:"created_at"`
 }
 
-func TestAPI_CRUD(t *testing.T) {
+// --- test helpers ---
+
+// doJSON sends a JSON request to the test server and returns the response.
+// Fails the test on error.
+func doJSON(t *testing.T, ts *httptest.Server, method, path string, payload any) *http.Response {
+	t.Helper()
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+path, bytes.NewReader(b))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	return resp
+}
+
+// do sends a request to the test server and returns the response.
+// Fails the test on error.
+func do(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+path, body)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	return resp
+}
+
+// decodeJSON decodes JSON from r into v. Fails the test on error.
+// v must be a pointer.
+func decodeJSON(t *testing.T, r io.Reader, v any) {
+	t.Helper()
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+}
+
+// TestAPI_AddGetUpdateDelete exercises the API happy path
+// in a temporary working directory so that "./out" is sandboxed per test run.
+// The test covers adding an item, retrieving it, updating its description and status, and deleting it.
+// At each step, the test verifies the expected outcomes.
+// The server is constructed to write to "out/todos_test.json" under the temp dir.
+// The test uses the httptest package to create a test server.
+func TestAPI_AddGetUpdateDelete(t *testing.T) {
 	// Create an isolated working directory
 	tmp := t.TempDir()
 
@@ -43,14 +97,14 @@ func TestAPI_CRUD(t *testing.T) {
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
-	// ---- CREATE ----
-	createBody := map[string]any{
+	// ---- ADD ----
+	addBody := map[string]any{
 		"description": "Write tests",
 		"status":      "started",
 	}
 	var created item
 	{
-		resp := doJSON(t, ts, "POST", "/add", createBody)
+		resp := doJSON(t, ts, "POST", "/add", addBody)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
 			t.Fatalf("create status = %d, want %d", resp.StatusCode, http.StatusCreated)
@@ -157,47 +211,5 @@ func TestAPI_CRUD(t *testing.T) {
 		if len(list2) != 0 {
 			t.Fatalf("list length after delete = %d, want %d", len(list2), 0)
 		}
-	}
-}
-
-// --- test helpers ---
-
-func doJSON(t *testing.T, ts *httptest.Server, method, path string, payload any) *http.Response {
-	t.Helper()
-	b, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+path, bytes.NewReader(b))
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("do: %v", err)
-	}
-	return resp
-}
-
-func do(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) *http.Response {
-	t.Helper()
-	req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+path, body)
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("do: %v", err)
-	}
-	return resp
-}
-
-func decodeJSON(t *testing.T, r io.Reader, v any) {
-	t.Helper()
-	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil {
-		t.Fatalf("decode: %v", err)
 	}
 }

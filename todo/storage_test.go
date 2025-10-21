@@ -11,7 +11,7 @@ import (
 // TestSaveAndLoad verifies end-to-end persistence:
 // - Save creates/overwrites the file
 // - Load round-trips the JSON data
-func TestSaveAndLoad(t *testing.T) {
+func TestTodo_SaveAndLoad(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "todos.json")
@@ -43,7 +43,9 @@ func TestSaveAndLoad(t *testing.T) {
 }
 
 // TestLoadMissingReturnsEmpty ensures missing files are treated as empty lists.
-func TestLoadMissingReturnsEmpty(t *testing.T) {
+// This avoids errors when loading non-existent to-do lists.
+// It verifies that Load returns an empty slice and no error.
+func TestTodo_LoadMissingReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nope.json")

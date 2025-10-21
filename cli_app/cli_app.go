@@ -57,10 +57,10 @@ Global flags (parsed before others in main):
 `)
 }
 
-// PrintList prints a simple fixed table to stdout.
+// printList prints a simple fixed table to stdout.
 // We rely on tabwriter to align columns regardless of content width.
 // NOTE: stdout is for user-facing output; logs go to stderr via slog.
-func PrintList(list []todo.Item) {
+func printList(list []todo.Item) {
 	// Create a writer that aligns columns based on tab stops.
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 
@@ -170,7 +170,7 @@ func (a *CLI_App) Run(ctx context.Context, args []string) error {
 	// Command routing — mutually exclusive modes for simplicity.
 	switch {
 	case listMode:
-		PrintList(list)
+		printList(list)
 		return nil
 	case descVal != "":
 		var it todo.Item
@@ -181,7 +181,7 @@ func (a *CLI_App) Run(ctx context.Context, args []string) error {
 			return err
 		}
 		_ = it
-		PrintList(list)
+		printList(list)
 		return todo.Save(ctx, list, outPath)
 	case updateIDVal > 0 && newDescVal != "":
 		var err error
@@ -190,7 +190,7 @@ func (a *CLI_App) Run(ctx context.Context, args []string) error {
 			slog.ErrorContext(ctx, "update failed", "error", err)
 			return err
 		}
-		PrintList(list)
+		printList(list)
 		return todo.Save(ctx, list, outPath)
 	case deleteIDVal > 0:
 		var err error
@@ -199,7 +199,7 @@ func (a *CLI_App) Run(ctx context.Context, args []string) error {
 			slog.ErrorContext(ctx, "delete failed", "error", err)
 			return err
 		}
-		PrintList(list)
+		printList(list)
 		return todo.Save(ctx, list, outPath)
 	default:
 		usage()
