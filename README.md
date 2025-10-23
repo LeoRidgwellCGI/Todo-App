@@ -168,37 +168,30 @@ curl http://localhost:8080/get?id=1
 
 Add a new task:
 ```bash
-curl -X POST http://localhost:8080/add \
-  -H 'Content-Type: application/json' \
-  -d '{"description":"Buy milk"}'
-```
-
-Set the status when adding a new task:
-```bash
-curl -X POST http://localhost:8080/add \
-  -H 'Content-Type: application/json' \
-  -d '{"description":"Buy milk","status":"started"}'
+curl -X POST "http://localhost:8080/add" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"description\":\"Buy milk\", \"status\":\"started\"}"
 ```
 
 Update a task:
 ```bash
-curl -X POST http://localhost:8080/update \
-  -H 'Content-Type: application/json' \
-  -d '{"id":1, "description":"Buy milk and eggs"}'
+curl -X POST "http://localhost:8080/update" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"id\":1, \"description\":\"Buy milk and eggs\"}"
 ```
 
 Update a task and status:
 ```bash
-curl -X POST http://localhost:8080/update \
-  -H 'Content-Type: application/json' \
-  -d '{"id":1, "description":"Buy milk and eggs", "status":"started"}'
+curl -X POST "http://localhost:8080/update" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"id\":1, \"description\":\"Buy milk and eggs\", \"status\":\"started\"}"
 ```
 
 Delete a task:
 ```bash
-curl -X POST http://localhost:8080/delete \
-  -H 'Content-Type: application/json' \
-  -d '{"id":1}'
+curl -X POST "http://localhost:8080/delete" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"id\":1}"
 ```
 
 List all tasks (static page):
