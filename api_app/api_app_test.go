@@ -255,3 +255,62 @@ func TestAPI_AboutServesStatic(t *testing.T) {
 		t.Fatalf("about content-type = %q, want to contain %q", ct, "text/html")
 	}
 }
+
+// TestAPI_ListRendersHTML verifies the dynamic /list page (served via html/template)
+// renders a table of todos and includes the descriptions of created items.
+func TestAPI_ListRendersHTML(t *testing.T) {
+	// Create an isolated working directory
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	// Start server
+	s := New("todos_test.json")
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	// Add a couple of todos (use the same path style the file already uses)
+	resp1 := doJSON(t, ts, http.MethodPost, "/add", map[string]any{
+		"description": "Alpha task",
+		"status":      "started",
+	})
+	defer resp1.Body.Close()
+	if resp1.StatusCode != http.StatusCreated {
+		t.Fatalf("create(1) status = %d, want %d", resp1.StatusCode, http.StatusCreated)
+	}
+
+	// Add another todo
+	resp2 := doJSON(t, ts, http.MethodPost, "/add", map[string]any{
+		"description": "Beta task",
+		"status":      "not started",
+	})
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusCreated {
+		t.Fatalf("create(2) status = %d, want %d", resp2.StatusCode, http.StatusCreated)
+	}
+
+	// Request /list (HTML view)
+	resp := do(t, ts, http.MethodGet, "/list", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/list status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Fatalf("/list content-type = %q, want to contain %q", ct, "text/html")
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	html := string(body)
+	if !strings.Contains(html, "Alpha task") || !strings.Contains(html, "Beta task") {
+		t.Fatalf("/list HTML did not include expected items; got:\n%s", html)
+	}
+}

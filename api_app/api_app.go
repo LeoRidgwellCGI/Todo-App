@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
@@ -21,8 +22,9 @@ import (
 
 // Server exposes HTTP endpoints for the Todo app.
 type Server struct {
-	outPath string
-	mux     *http.ServeMux
+	outPath  string
+	mux      *http.ServeMux
+	listTmpl *template.Template
 }
 
 // New constructs a Server with routes registered on a ServeMux.
@@ -31,6 +33,49 @@ func New(outPath string) *Server {
 		outPath: outPath,
 		mux:     http.NewServeMux(),
 	}
+	// Prepare the html/template used by /list
+	s.listTmpl = template.Must(template.New("list").Parse(`
+	<!doctype html>
+	<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Todo List</title>
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+		<style>
+		body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+		h1 { color: #0b6bcb; }
+		table { border-collapse: collapse; width: 100%; }
+		th, td { border: 1px solid #ddd; padding: 8px; }
+		th { background: #f2f2f2; text-align: left; }
+		.empty { color: #666; padding: 1rem 0; }
+		.meta { color: #555; margin-bottom: 1rem; }
+		code { background:#f6f8fa; padding:2px 6px; border-radius:4px; }
+		</style>
+	</head>
+	<body>
+		<h1>Todos</h1>
+		<div class="meta">Total: {{len .Items}}</div>
+		{{if .Items}}
+		<table>
+		<thead>
+			<tr><th>ID</th><th>Description</th><th>Status</th><th>Created</th></tr>
+		</thead>
+		<tbody>
+			{{range .Items}}
+			<tr>
+			<td>{{.ID}}</td>
+			<td>{{.Description}}</td>
+			<td>{{.Status}}</td>
+			<td>{{.CreatedAt}}</td>
+			</tr>
+			{{end}}
+		</tbody>
+		</table>
+		{{else}}
+		<div class="empty">No to-dos yet. Use the API to <code>POST /create</code> and add one!</div>
+		{{end}}
+	</body>
+	</html>`))
 	s.registerRoutes()
 	return s
 }
@@ -48,6 +93,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/add", s.withCtx(s.handleAdd))
 	s.mux.HandleFunc("/update", s.withCtx(s.handleUpdate))
 	s.mux.HandleFunc("/delete", s.withCtx(s.handleDelete))
+
+	// Dynamic HTML list page
+	s.mux.HandleFunc("/list", s.withCtx(s.handleList))
 
 	// Serve static "about" page
 	fs := http.FileServer(http.Dir("static"))
@@ -304,6 +352,36 @@ func (s *Server) handleDelete(ctx context.Context, w http.ResponseWriter, r *htt
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": req.ID})
+}
+
+// GET /list — render an HTML page listing all todos using html/template
+func (s *Server) handleList(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	// Only allow GET
+	if r.Method != http.MethodGet {
+		respondErr(ctx, w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
+		return
+	}
+
+	// Load the todo items
+	list, err := s.load(ctx)
+	if err != nil {
+		respondErr(ctx, w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// Render the template
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	data := struct {
+		Items []todo.Item
+	}{
+		Items: list,
+	}
+
+	// Execute the template
+	if err := s.listTmpl.Execute(w, data); err != nil {
+		respondErr(ctx, w, http.StatusInternalServerError, fmt.Errorf("template execute: %w", err))
+		return
+	}
 }
 
 // Run listens and serves on addr until context cancel.

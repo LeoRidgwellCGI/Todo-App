@@ -107,6 +107,12 @@ go test ./
 | `update`                       | POST a header and description and update an existing task (See examples below)            |
 | `delete`                       | POST a header and description and delete an existing task (See examples below)            |
 
+### Static Pages
+| Pages                          | Description                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `list`                         | List all tasks on a static page (See examples below)                                      |
+| `about`                        | View information about the application on a static page (See examples below)              |
+
 ---
 
 ## Examples (CLI Mode)
@@ -193,6 +199,16 @@ Delete a task:
 curl -s -X POST localhost:8080/delete \
   -H 'Content-Type: application/json' \
   -d '{"id":1}'
+```
+
+List all tasks (static page):
+```bash
+localhost:8080/list
+```
+
+Open about page (static page):
+```bash
+localhost:8080/about
 ```
 
 ---
