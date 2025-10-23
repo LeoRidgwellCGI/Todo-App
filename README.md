@@ -158,57 +158,57 @@ go run ./cmd/cli -logtext --traceid=my-trace-id -add "Try text logs"
 
 Get all tasks:
 ```bash
-curl -s localhost:8080/get
+curl http://localhost:8080/get
 ```
 
 Get a single task:
 ```bash
-curl -s 'localhost:8080/get?id=1'
+curl http://localhost:8080/get?id=1
 ```
 
 Add a new task:
 ```bash
-curl -s -X POST localhost:8080/add \
+curl -X POST http://localhost:8080/add \
   -H 'Content-Type: application/json' \
   -d '{"description":"Buy milk"}'
 ```
 
 Set the status when adding a new task:
 ```bash
-curl -s -X POST localhost:8080/add \
+curl -X POST http://localhost:8080/add \
   -H 'Content-Type: application/json' \
   -d '{"description":"Buy milk","status":"started"}'
 ```
 
 Update a task:
 ```bash
-curl -s -X POST localhost:8080/update \
+curl -X POST http://localhost:8080/update \
   -H 'Content-Type: application/json' \
   -d '{"id":1, "description":"Buy milk and eggs"}'
 ```
 
 Update a task and status:
 ```bash
-curl -s -X POST localhost:8080/update \
+curl -X POST http://localhost:8080/update \
   -H 'Content-Type: application/json' \
   -d '{"id":1, "description":"Buy milk and eggs", "status":"started"}'
 ```
 
 Delete a task:
 ```bash
-curl -s -X POST localhost:8080/delete \
+curl -X POST http://localhost:8080/delete \
   -H 'Content-Type: application/json' \
   -d '{"id":1}'
 ```
 
 List all tasks (static page):
 ```bash
-localhost:8080/list
+curl http://localhost:8080/list
 ```
 
 Open about page (static page):
 ```bash
-localhost:8080/about
+curl http://localhost:8080/about
 ```
 
 ---
