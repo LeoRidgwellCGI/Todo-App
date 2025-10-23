@@ -23,7 +23,7 @@ A to-do item should include a description and a status of "not started", "starte
 
 ## 3) ✅ API
 - ✅ Use ServeMux in the "net/http" package to expose json http endpoints: "/create", "/get", "/update", and "/delete"
-- ✅ Add a middleware to create a context with TraceID
+- Add a middleware to create a context with TraceID
 
 ## 4) ✅ Web page
 - ✅ Use "http.FileServer" to serve a static page to a new "/about" endpoint

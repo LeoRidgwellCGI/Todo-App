@@ -98,8 +98,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/list", s.withCtx(s.handleList))
 
 	// Serve static "about" page
-	fs := http.FileServer(http.Dir("static"))
-	s.mux.Handle("/about/", http.StripPrefix("/about/", fs))
+	s.mux.Handle("/about/", http.StripPrefix("/about", http.FileServer(http.Dir("static/about"))))
 
 	// Health
 	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
