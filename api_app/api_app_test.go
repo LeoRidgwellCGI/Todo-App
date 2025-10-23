@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -211,5 +212,46 @@ func TestAPI_AddGetUpdateDelete(t *testing.T) {
 		if len(list2) != 0 {
 			t.Fatalf("list length after delete = %d, want %d", len(list2), 0)
 		}
+	}
+}
+
+// Verifies the static /about/ endpoint (served with http.FileServer)
+// returns 200 OK and serves HTML content. The test creates a temporary
+// ./static/about/index.html under the per-test working directory.
+func TestAPI_AboutServesStatic(t *testing.T) {
+	// Create an isolated working directory
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	// Arrange a static file under ./static/about/index.html
+	if err := os.MkdirAll("static/about", 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	const html = "<!doctype html><html><head><title>About</title></head><body>About Todo-App</body></html>"
+	if err := os.WriteFile("static/about/index.html", []byte(html), 0o644); err != nil {
+		t.Fatalf("write about index: %v", err)
+	}
+
+	// Start the API server (it should have /about/ mounted via http.FileServer)
+	s := New("todos_test.json")
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	// Request the about page (directory path with trailing slash so index.html is served)
+	resp := do(t, ts, http.MethodGet, "/about/", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("about status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Fatalf("about content-type = %q, want to contain %q", ct, "text/html")
 	}
 }

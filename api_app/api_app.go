@@ -43,10 +43,16 @@ func (s *Server) Handler() http.Handler {
 // Register routes on the internal ServeMux.
 // Endpoints: /get, /add, /update, /delete
 func (s *Server) registerRoutes() {
+	// API endpoints
 	s.mux.HandleFunc("/get", s.withCtx(s.handleGet))
 	s.mux.HandleFunc("/add", s.withCtx(s.handleAdd))
 	s.mux.HandleFunc("/update", s.withCtx(s.handleUpdate))
 	s.mux.HandleFunc("/delete", s.withCtx(s.handleDelete))
+
+	// Serve static "about" page
+	fs := http.FileServer(http.Dir("static"))
+	s.mux.Handle("/about/", http.StripPrefix("/about/", fs))
+
 	// Health
 	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
