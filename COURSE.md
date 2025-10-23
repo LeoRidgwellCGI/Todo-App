@@ -25,9 +25,9 @@ A to-do item should include a description and a status of "not started", "starte
 - ✅ Use ServeMux in the "net/http" package to expose json http endpoints: "/create", "/get", "/update", and "/delete"
 - ✅ Add a middleware to create a context with TraceID
 
-## 4) Web page
+## 4) ✅ Web page
 - ✅ Use "http.FileServer" to serve a static page to a new "/about" endpoint
-- Use "html/template" to serve a dynamic page containing a list of all to-do items to a new "/list" endpoint
+- ✅ Use "html/template" to serve a dynamic page containing a list of all to-do items to a new "/list" endpoint
 
 ## 5) Concurrency
 - Use the Actor/Communicating Sequential Processes (CSP) pattern to support concurrent reads and concurrent safe write
