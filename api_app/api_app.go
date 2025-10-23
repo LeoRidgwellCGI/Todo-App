@@ -332,8 +332,8 @@ func (s *Server) handleDelete(ctx context.Context, w http.ResponseWriter, r *htt
 		return
 	}
 
-	list, err := s.load(ctx)
 	// Data operations
+	list, err := s.load(ctx)
 	if err != nil {
 		respondErr(ctx, w, http.StatusInternalServerError, err)
 		return
