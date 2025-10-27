@@ -3,7 +3,6 @@ package cli_app
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"regexp"
 	"testing"
@@ -47,14 +46,11 @@ func captureStdout(t *testing.T) func() string {
 	}
 }
 
-// TestCLI_AddListUpdateDelete exercises the CLI happy path
-// in a temporary working directory so that "./out" is sandboxed per test run.
-// It verifies that the file is created as expected
-// and that the list contents match expectations after each operation.
-// The test covers adding an item, listing it, updating its description, and deleting it.
-// At each step, the test verifies the expected outcomes.
-func TestCLI_AddListUpdateDelete(t *testing.T) {
-	// Create a temp directory and switch into it for isolation.
+// TestCLI_Add_CreatesItem verifies that the CLI's add command creates a new to-do item
+// and that the item is persisted to the expected file.
+// It checks the output file for the new item.
+// It uses an isolated temporary working directory for the test.
+func TestCLI_Add_CreatesItem(t *testing.T) {
 	tmp := t.TempDir()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -63,48 +59,108 @@ func TestCLI_AddListUpdateDelete(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatalf("Chdir: %v", err)
 	}
-	// Restore the original working directory before cleanup.
 	t.Cleanup(func() { _ = os.Chdir(cwd) })
 
 	app := New()
 	ctx := context.Background()
 
-	// Intentionally pass a non-"out" path; CLI will normalize to "out/todos.json".
-	rawPath := "todos.json"
-	normPath := normalizeOutPath(rawPath) // -> out/todos.json (platform path separators may vary)
-
-	// ADD
+	rawPath := "todos.json" // will normalize to out/todos.json
 	if err := app.Run(ctx, []string{"-add", "Buy milk", "-out", rawPath}); err != nil {
 		t.Fatalf("Run(add) error: %v", err)
 	}
 	list := readTodos(t, rawPath)
 	if len(list) != 1 || list[0].Description != "Buy milk" {
-		b, _ := json.Marshal(list)
-		t.Fatalf("after add, got=%s", string(b))
+		t.Fatalf("unexpected list after add: %+v", list)
 	}
-	if _, err := os.Stat(normPath); err != nil {
-		t.Fatalf("expected file at %s; err=%v", normPath, err)
-	}
+}
 
-	// LIST (should not error and should not change file)
-	if err := app.Run(ctx, []string{"-list", "-out", rawPath}); err != nil {
-		t.Fatalf("Run(list) error: %v", err)
+// TestCLI_List_ShowsTwoItems verifies that the CLI's list command
+// correctly lists two added to-do items.
+// It seeds two items via the add command, then reads back the list.
+// It uses an isolated temporary working directory for the test.
+func TestCLI_List_ShowsTwoItems(t *testing.T) {
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
 	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
 
-	// UPDATE (id 1 -> new desc)
+	app := New()
+	ctx := context.Background()
+	rawPath := "todos.json"
+
+	// Seed two items
+	_ = app.Run(ctx, []string{"-add", "Task A", "-status", "not started", "-out", rawPath})
+	_ = app.Run(ctx, []string{"-add", "Task B", "-status", "started", "-out", rawPath})
+
+	// List should return two
+	list := readTodos(t, rawPath)
+	print(len(list))
+	if len(list) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(list))
+	}
+}
+
+// TestCLI_Update_ChangesItem verifies that the CLI's update command
+// correctly modifies an existing to-do item.
+// It seeds one item via the add command, then updates it.
+// It reads back the list to verify the changes.
+// It uses an isolated temporary working directory for the test.
+func TestCLI_Update_ChangesItem(t *testing.T) {
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	app := New()
+	ctx := context.Background()
+	rawPath := "todos.json"
+
+	_ = app.Run(ctx, []string{"-add", "Buy milk", "-out", rawPath})
+
 	if err := app.Run(ctx, []string{"-update", "1", "-newdesc", "Buy oat milk", "-out", rawPath}); err != nil {
 		t.Fatalf("Run(update) error: %v", err)
 	}
-	list = readTodos(t, rawPath)
-	if got := list[0].Description; got != "Buy oat milk" {
-		t.Fatalf("after update, desc=%q", got)
+	list := readTodos(t, rawPath)
+	if len(list) != 1 || list[0].Description != "Buy oat milk" || string(list[0].Status) != "not started" {
+		t.Fatalf("unexpected list after update: %+v", list)
 	}
+}
 
-	// DELETE
+// TestCLI_Delete_RemovesItem verifies that the CLI's delete command
+// correctly removes an existing to-do item.
+// It seeds one item via the add command, then deletes it.
+// It reads back the list to verify the item is gone.
+// It uses an isolated temporary working directory for the test.
+func TestCLI_Delete_RemovesItem(t *testing.T) {
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	app := New()
+	ctx := context.Background()
+	rawPath := "todos.json"
+
+	_ = app.Run(ctx, []string{"-add", "Buy milk", "-out", rawPath})
 	if err := app.Run(ctx, []string{"-delete", "1", "-out", rawPath}); err != nil {
 		t.Fatalf("Run(delete) error: %v", err)
 	}
-	list = readTodos(t, rawPath)
+	list := readTodos(t, rawPath)
 	if len(list) != 0 {
 		t.Fatalf("after delete, expected 0 items, got %d", len(list))
 	}

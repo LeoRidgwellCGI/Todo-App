@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// TestSaveAndLoad verifies end-to-end persistence:
+// TestTodo_SaveAndLoad verifies end-to-end persistence:
 // - Save creates/overwrites the file
 // - Load round-trips the JSON data
 func TestTodo_SaveAndLoad(t *testing.T) {
@@ -42,7 +42,7 @@ func TestTodo_SaveAndLoad(t *testing.T) {
 	}
 }
 
-// TestLoadMissingReturnsEmpty ensures missing files are treated as empty lists.
+// TestTodo_LoadMissingReturnsEmpty ensures missing files are treated as empty lists.
 // This avoids errors when loading non-existent to-do lists.
 // It verifies that Load returns an empty slice and no error.
 func TestTodo_LoadMissingReturnsEmpty(t *testing.T) {

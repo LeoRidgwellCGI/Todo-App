@@ -7,7 +7,7 @@ import (
 
 // TestTrace_GenerateIDLengthAndRandomness ensures that GenerateID returns hex strings
 // of the expected length and that successive invocations differ.
-func TestGenerateIDLengthAndRandomness(t *testing.T) {
+func TestTrace_GenerateIDLengthAndRandomness(t *testing.T) {
 	id1 := GenerateID()
 	id2 := GenerateID()
 	if len(id1) != 32 || len(id2) != 32 {
@@ -21,7 +21,7 @@ func TestGenerateIDLengthAndRandomness(t *testing.T) {
 // TestTrace_NewAndFrom verifies round-tripping trace IDs via context.
 // It checks that a newly created context contains the expected ID,
 // and that From can extract it correctly.
-func TestNewAndFrom(t *testing.T) {
+func TestTrace_NewAndFrom(t *testing.T) {
 	base := context.Background()
 	ctx, id := New(base)
 	got, ok := From(ctx)
@@ -36,7 +36,7 @@ func TestNewAndFrom(t *testing.T) {
 // TestTrace_NewWithID checks that externally supplied IDs are used verbatim,
 // and that an empty input falls back to generation.
 // It verifies both scenarios via From.
-func TestNewWithID(t *testing.T) {
+func TestTrace_NewWithID(t *testing.T) {
 	base := context.Background()
 	ctx, id := NewWithID(base, "custom-id-123")
 	if id != "custom-id-123" {
