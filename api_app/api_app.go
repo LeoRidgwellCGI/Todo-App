@@ -36,6 +36,7 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 	srv := &http.Server{Addr: addr, Handler: s.mux}
 	go func() {
 		<-ctx.Done()
+		slog.Info("shutting down server")
 		_ = srv.Shutdown(context.Background())
 	}()
 	slog.Info("listening", "addr", addr)

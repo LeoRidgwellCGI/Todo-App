@@ -5,31 +5,51 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"todo-app/service"
 	"todo-app/todo"
 	"todo-app/trace"
 )
 
+// CtxHandler defines a handler with context.
+type CtxHandler func(context.Context, http.ResponseWriter, *http.Request)
+
 // Register wires routes onto the provided mux using the given store.
 func Register(mux *http.ServeMux, store service.Store) {
-	// Add handler
-	mux.HandleFunc("/add", withCtx(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	// Handlers with logging and context injection
+	mux.HandleFunc("/add", withCtx(logger(addHandler(store))))
+	mux.HandleFunc("/get", withCtx(logger(getHandler(store))))
+	mux.HandleFunc("/update", withCtx(logger(updateHandler(store))))
+	mux.HandleFunc("/delete", withCtx(logger(deleteHandler(store))))
+	mux.HandleFunc("/list", withCtx(logger(listHandler(store))))
+
+	// Serve static /about/ from ./static/about
+	mux.Handle("/about/", http.StripPrefix("/about/", http.FileServer(http.Dir("static/about"))))
+	mux.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/about/", http.StatusMovedPermanently)
+	})
+}
+
+// Add handler
+func addHandler(store service.Store) CtxHandler {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Description string `json:"description"`
 			Status      string `json:"status"` // optional; default below
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondErr(w, http.StatusBadRequest, err)
+			respondErr(ctx, w, http.StatusBadRequest, err)
 			return
 		}
 
 		desc := strings.TrimSpace(req.Description)
 		if desc == "" {
-			respondErr(w, http.StatusBadRequest, fmt.Errorf("description is required"))
+			respondErr(ctx, w, http.StatusBadRequest, fmt.Errorf("description is required"))
 			return
 		}
 
@@ -42,30 +62,32 @@ func Register(mux *http.ServeMux, store service.Store) {
 
 		list, err := store.Load(ctx)
 		if err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 
 		// NOTE: todo.Add(list, description, status)
 		list, item, err := todo.Add(list, desc, st)
 		if err != nil {
-			respondErr(w, http.StatusBadRequest, err)
+			respondErr(ctx, w, http.StatusBadRequest, err)
 			return
 		}
 
 		if err := store.Save(ctx, list); err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 		respondJSON(w, http.StatusCreated, item)
-	}))
+	}
+}
 
-	// Get handler
-	mux.HandleFunc("/get", withCtx(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+// Get handler
+func getHandler(store service.Store) CtxHandler {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		// load list once
 		list, err := store.Load(ctx)
 		if err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 
@@ -82,29 +104,31 @@ func Register(mux *http.ServeMux, store service.Store) {
 			respondJSON(w, http.StatusOK, it)
 			return
 		}
-		respondErr(w, http.StatusNotFound, fmt.Errorf("no to-do with id %d", id))
-	}))
+		respondErr(ctx, w, http.StatusNotFound, fmt.Errorf("no to-do with id %d", id))
+	}
+}
 
-	// Update handler
-	mux.HandleFunc("/update", withCtx(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+// Update handler
+func updateHandler(store service.Store) func(context.Context, http.ResponseWriter, *http.Request) {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ID          int    `json:"id"`
 			Description string `json:"description"`
 			Status      string `json:"status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondErr(w, http.StatusBadRequest, err)
+			respondErr(ctx, w, http.StatusBadRequest, err)
 			return
 		}
 		list, err := store.Load(ctx)
 		if err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 		if req.Description != "" {
 			list, err = todo.UpdateDescription(list, req.ID, strings.TrimSpace(req.Description))
 			if err != nil {
-				respondErr(w, http.StatusBadRequest, err)
+				respondErr(ctx, w, http.StatusBadRequest, err)
 				return
 			}
 		}
@@ -112,13 +136,13 @@ func Register(mux *http.ServeMux, store service.Store) {
 		if req.Status != "" {
 			list, err = todo.UpdateStatus(list, req.ID, todo.Status(strings.TrimSpace(req.Status)))
 			if err != nil {
-				respondErr(w, http.StatusBadRequest, err)
+				respondErr(ctx, w, http.StatusBadRequest, err)
 				return
 			}
 		}
 
 		if err := store.Save(ctx, list); err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 
@@ -126,53 +150,49 @@ func Register(mux *http.ServeMux, store service.Store) {
 			respondJSON(w, http.StatusOK, updated)
 			return
 		}
-	}))
+	}
+}
 
-	// Delete handler
-	mux.HandleFunc("/delete", withCtx(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+// Delete handler
+func deleteHandler(store service.Store) CtxHandler {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ID int `json:"id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondErr(w, http.StatusBadRequest, err)
+			respondErr(ctx, w, http.StatusBadRequest, err)
 			return
 		}
 		list, err := store.Load(ctx)
 		if err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 		list, err = todo.Delete(list, req.ID)
 		if err != nil {
-			respondErr(w, http.StatusBadRequest, err)
+			respondErr(ctx, w, http.StatusBadRequest, err)
 			return
 		}
 		if err := store.Save(ctx, list); err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	}
+}
 
-	// Serve static /about/ from ./static/about
-	mux.Handle("/about/", http.StripPrefix("/about/", http.FileServer(http.Dir("static/about"))))
-
-	// (Optional) redirect /about -> /about/ so both work
-	mux.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/about/", http.StatusMovedPermanently)
-	})
-
-	// Simple HTML view of all to-dos at /list
-	mux.HandleFunc("/list", withCtx(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+// List handler - serves HTML page
+func listHandler(store service.Store) CtxHandler {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		list, err := store.Load(ctx)
 		if err != nil {
-			respondErr(w, http.StatusInternalServerError, err)
+			respondErr(ctx, w, http.StatusInternalServerError, err)
 			return
 		}
 		tpl := template.Must(template.New("list").Parse(listTemplate))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_ = tpl.Execute(w, struct{ Items []todo.Item }{Items: list})
-	}))
+	}
 }
 
 // withCtx injects a TraceID and passes context to a functional handler.
@@ -181,18 +201,69 @@ func withCtx(next func(context.Context, http.ResponseWriter, *http.Request)) htt
 		ctx := r.Context()
 		if _, ok := trace.From(ctx); !ok {
 			ctx, _ = trace.NewWithID(ctx, trace.GenerateID())
+			r = r.WithContext(ctx)
 		}
-		next(ctx, w, r.WithContext(ctx))
+		next(ctx, w, r)
 	}
 }
 
+// statusRecorder captures status/bytes for logging.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	n, err := s.ResponseWriter.Write(b)
+	s.bytes += n
+	return n, err
+}
+
+// logger emits start/end logs with trace_id, method, path, status and duration.
+func logger(next CtxHandler) CtxHandler {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		tid, _ := trace.From(ctx)
+		start := time.Now()
+
+		sr := &statusRecorder{ResponseWriter: w, status: 200}
+		slog.InfoContext(ctx, "request start",
+			"method", r.Method, "path", r.URL.Path, "trace_id", tid,
+		)
+
+		next(ctx, sr, r)
+
+		dur := time.Since(start)
+		fields := []any{
+			"status", sr.status, "bytes", sr.bytes, "duration_ms", dur.Milliseconds(),
+			"method", r.Method, "path", r.URL.Path, "trace_id", tid,
+		}
+		switch {
+		case sr.status >= 500:
+			slog.ErrorContext(ctx, "request end", fields...)
+		case sr.status >= 400:
+			slog.WarnContext(ctx, "request end", fields...)
+		default:
+			slog.InfoContext(ctx, "request end", fields...)
+		}
+	}
+}
+
+// respondJSON writes a JSON response with the given status code.
 func respondJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func respondErr(w http.ResponseWriter, status int, err error) {
+// respondErr logs the error and responds with a JSON error message.
+func respondErr(ctx context.Context, w http.ResponseWriter, status int, err error) {
+	tid, _ := trace.From(ctx)
+	slog.ErrorContext(ctx, "handler error", "status", status, "error", err, "trace_id", tid)
 	type errResp struct {
 		Error string `json:"error"`
 	}

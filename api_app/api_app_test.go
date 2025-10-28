@@ -278,43 +278,6 @@ func TestAPI_Delete_RemovesItem(t *testing.T) {
 	}
 }
 
-// TestAPI_AboutServesStatic ensures /about/ serves content from ./static/about.
-func TestAPI_AboutServesStatic(t *testing.T) {
-	tmp := t.TempDir()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(tmp); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-
-	// Create ./static/about/index.html under the temp workspace
-	if err := os.MkdirAll(filepath.Join("static", "about"), 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	const html = "<!doctype html><html><body><h1>About OK</h1></body></html>"
-	if err := os.WriteFile(filepath.Join("static", "about", "index.html"), []byte(html), 0o644); err != nil {
-		t.Fatalf("write index.html: %v", err)
-	}
-
-	s := New("todos_test.json")
-	ts := httptest.NewServer(s.Handler())
-	defer ts.Close()
-
-	resp := do(t, ts, "GET", "/about/", nil)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("/about status = %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-	ct := resp.Header.Get("Content-Type")
-	// Allow either "text/html; charset=utf-8" or generic "text/html"
-	if !strings.Contains(ct, "text/html") {
-		t.Fatalf("/about content-type = %q, want to contain %q", ct, "text/html")
-	}
-}
-
 // TestAPI_ListRendersHTML validates the HTML table for /list
 func TestAPI_ListRendersHTML(t *testing.T) {
 	tmp := t.TempDir()
@@ -351,5 +314,42 @@ func TestAPI_ListRendersHTML(t *testing.T) {
 	html := string(body)
 	if !strings.Contains(html, "Alpha task") || !strings.Contains(html, "Beta task") {
 		t.Fatalf("/list HTML did not include expected items; got:\n%s", html)
+	}
+}
+
+// TestAPI_AboutServesStatic ensures /about/ serves content from ./static/about.
+func TestAPI_AboutServesStatic(t *testing.T) {
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	// Create ./static/about/index.html under the temp workspace
+	if err := os.MkdirAll(filepath.Join("static", "about"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	const html = "<!doctype html><html><body><h1>About OK</h1></body></html>"
+	if err := os.WriteFile(filepath.Join("static", "about", "index.html"), []byte(html), 0o644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+
+	s := New("todos_test.json")
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp := do(t, ts, "GET", "/about/", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/about status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	ct := resp.Header.Get("Content-Type")
+	// Allow either "text/html; charset=utf-8" or generic "text/html"
+	if !strings.Contains(ct, "text/html") {
+		t.Fatalf("/about content-type = %q, want to contain %q", ct, "text/html")
 	}
 }

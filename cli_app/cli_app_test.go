@@ -74,6 +74,36 @@ func TestCLI_Add_CreatesItem(t *testing.T) {
 	}
 }
 
+// TestCLI_List_ShowsOneItem verifies that the CLI's list command
+// correctly lists one added to-do item.
+// It seeds one item via the add command, then reads back the list.
+// It uses an isolated temporary working directory for the test.
+func TestCLI_List_ShowsOneItem(t *testing.T) {
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	app := New()
+	ctx := context.Background()
+	rawPath := "todos.json"
+
+	// Seed two items
+	_ = app.Run(ctx, []string{"-add", "Task A", "-status", "not started", "-out", rawPath})
+
+	// List should return two
+	list := readTodos(t, rawPath)
+	print(len(list))
+	if len(list) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(list))
+	}
+}
+
 // TestCLI_List_ShowsTwoItems verifies that the CLI's list command
 // correctly lists two added to-do items.
 // It seeds two items via the add command, then reads back the list.
