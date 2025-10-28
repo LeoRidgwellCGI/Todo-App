@@ -4,411 +4,45 @@ package api_app
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
-	"todo-app/todo"
-	"todo-app/trace"
+	"todo-app/httpapi"
+	"todo-app/service"
 )
 
-// Server exposes HTTP endpoints for the Todo app.
+// Server is now a thin bootstrapper (intentionally small).
+// All HTTP concerns (routing + handlers) live in package httpapi.
 type Server struct {
-	outPath  string
-	mux      *http.ServeMux
-	listTmpl *template.Template
+	store service.Store
+	mux   *http.ServeMux
 }
 
-// New constructs a Server with routes registered on a ServeMux.
+// New constructs a server using a JSON file at outPath.
 func New(outPath string) *Server {
-	s := &Server{
-		outPath: outPath,
-		mux:     http.NewServeMux(),
-	}
-	// Prepare the html/template used by /list
-	s.listTmpl = template.Must(template.New("list").Parse(`
-	<!doctype html>
-	<html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<title>Todo List</title>
-		<meta name="viewport" content="width=device-width,initial-scale=1">
-		<style>
-		body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
-		h1 { color: #0b6bcb; }
-		table { border-collapse: collapse; width: 100%; }
-		th, td { border: 1px solid #ddd; padding: 8px; }
-		th { background: #f2f2f2; text-align: left; }
-		.empty { color: #666; padding: 1rem 0; }
-		.meta { color: #555; margin-bottom: 1rem; }
-		code { background:#f6f8fa; padding:2px 6px; border-radius:4px; }
-		</style>
-	</head>
-	<body>
-		<h1>Todos</h1>
-		<div class="meta">Total: {{len .Items}}</div>
-		{{if .Items}}
-		<table>
-		<thead>
-			<tr><th>ID</th><th>Description</th><th>Status</th><th>Created</th></tr>
-		</thead>
-		<tbody>
-			{{range .Items}}
-			<tr>
-			<td>{{.ID}}</td>
-			<td>{{.Description}}</td>
-			<td>{{.Status}}</td>
-			<td>{{.CreatedAt}}</td>
-			</tr>
-			{{end}}
-		</tbody>
-		</table>
-		{{else}}
-		<div class="empty">No to-dos yet. Use the API to <code>POST /create</code> and add one!</div>
-		{{end}}
-	</body>
-	</html>`))
-	s.registerRoutes()
-	return s
+	st := service.NewFileStore(outPath)
+	mux := http.NewServeMux()
+	httpapi.Register(mux, st)
+	return &Server{store: st, mux: mux}
 }
 
-// Handler returns the http.Handler for this API server.
-func (s *Server) Handler() http.Handler {
-	return s.mux
-}
+// Handler returns the fully wired HTTP handler.
+func (s *Server) Handler() http.Handler { return s.mux }
 
-// Register routes on the internal ServeMux.
-// Endpoints: /get, /add, /update, /delete
-func (s *Server) registerRoutes() {
-	// API endpoints
-	s.mux.HandleFunc("/get", s.withCtx(s.handleGet))
-	s.mux.HandleFunc("/add", s.withCtx(s.handleAdd))
-	s.mux.HandleFunc("/update", s.withCtx(s.handleUpdate))
-	s.mux.HandleFunc("/delete", s.withCtx(s.handleDelete))
-
-	// Dynamic HTML list page
-	s.mux.HandleFunc("/list", s.withCtx(s.handleList))
-
-	// Serve static "about" page
-	s.mux.Handle("/about/", http.StripPrefix("/about", http.FileServer(http.Dir("static/about"))))
-
-	// Health
-	s.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
-}
-
-// withCtx is a helper to wrap handlers with context that includes TraceID.
-// It checks for an incoming X-Trace-ID header to propagate.
-func (s *Server) withCtx(next func(context.Context, http.ResponseWriter, *http.Request)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		if h := r.Header.Get("X-Trace-ID"); h != "" {
-			ctx = func() context.Context { ctx2, _ := trace.NewWithID(ctx, h); return ctx2 }()
-		} else {
-			ctx = func() context.Context { ctx2, _ := trace.New(ctx); return ctx2 }()
-		}
-
-		next(ctx, w, r.WithContext(ctx))
-	}
-}
-
-// respondJSON writes v as JSON with the given status code.
-// Ignores encoding errors.
-func respondJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-// respondErr logs the error and responds with a JSON error message.
-// Ignores encoding errors.
-func respondErr(ctx context.Context, w http.ResponseWriter, status int, err error) {
-	slog.ErrorContext(ctx, "request failed", "status", status, "error", err)
-	type errResp struct {
-		Error string `json:"error"`
-	}
-	respondJSON(w, status, errResp{Error: err.Error()})
-}
-
-// Data access helpers
-// ensureOutPath returns the normalized output path for the todo JSON file.
-func (s *Server) ensureOutPath() string {
-	p := s.outPath
-	if p == "" {
-		p = "out/todos.json"
-	}
-	// normalize to ./out/<basename>
-	base := filepath.Base(p)
-	return filepath.ToSlash(filepath.Join("out", base))
-}
-
-// load reads the todo items from the output path.
-func (s *Server) load(ctx context.Context) ([]todo.Item, error) {
-	return todo.Load(ctx, s.ensureOutPath())
-}
-
-// save writes the todo items to the output path.
-func (s *Server) save(ctx context.Context, list []todo.Item) error {
-	return todo.Save(ctx, list, s.ensureOutPath())
-}
-
-// findByID searches for an item by ID in the list.
-// Returns (item, true) if found; (zero, false) if not found.
-func (s *Server) findByID(list []todo.Item, id int) (todo.Item, bool) {
-	for _, it := range list {
-		if it.ID == id {
-			return it, true
-		}
-	}
-	return todo.Item{}, false
-}
-
-// Handlers
-// GET /get or /get?id=123
-// If id is provided, returns that item; else returns full list.
-func (s *Server) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		respondErr(ctx, w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-		return
-	}
-
-	list, err := s.load(ctx)
-	if err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-
-	idStr := r.URL.Query().Get("id")
-	if strings.TrimSpace(idStr) == "" {
-		respondJSON(w, http.StatusOK, list)
-		return
-	}
-
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		respondErr(ctx, w, http.StatusBadRequest, fmt.Errorf("invalid id %q: %w", idStr, err))
-		return
-	}
-
-	if it, ok := s.findByID(list, id); ok {
-		respondJSON(w, http.StatusOK, it)
-		return
-	}
-
-	respondErr(ctx, w, http.StatusNotFound, fmt.Errorf("no to-do with id %d", id))
-}
-
-// POST /add  body: {"description":"...", "status":"not started|started|completed"}
-type addReq struct {
-	Description string      `json:"description"`
-	Status      todo.Status `json:"status"`
-}
-
-// handleAdd handles creating a new todo item.
-// Expects a POST with JSON body.
-func (s *Server) handleAdd(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		respondErr(ctx, w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-		return
-	}
-
-	var req addReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondErr(ctx, w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
-		return
-	}
-
-	list, err := s.load(ctx)
-	if err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-
-	list, item, err := todo.Add(list, req.Description, req.Status)
-	if err != nil {
-		respondErr(ctx, w, http.StatusBadRequest, err)
-		return
-	}
-
-	if err := s.save(ctx, list); err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-	respondJSON(w, http.StatusCreated, item)
-}
-
-// POST|PATCH /update  body: {"id":123, "description":"...", "status":"..."}
-type updateReq struct {
-	ID          int          `json:"id"`
-	Description *string      `json:"description,omitempty"`
-	Status      *todo.Status `json:"status,omitempty"`
-}
-
-// handleUpdate handles updating an existing todo item.
-// Expects a POST or PATCH with JSON body.
-func (s *Server) handleUpdate(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost && r.Method != http.MethodPatch {
-		respondErr(ctx, w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-		return
-	}
-
-	var req updateReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondErr(ctx, w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
-		return
-	}
-
-	if req.ID == 0 {
-		respondErr(ctx, w, http.StatusBadRequest, errors.New("id is required"))
-		return
-	}
-
-	list, err := s.load(ctx)
-	if err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-
-	if req.Description != nil {
-		if list, err = todo.UpdateDescription(list, req.ID, *req.Description); err != nil {
-			respondErr(ctx, w, http.StatusBadRequest, err)
-			return
-		}
-	}
-
-	if req.Status != nil {
-		if list, err = todo.UpdateStatus(list, req.ID, *req.Status); err != nil {
-			respondErr(ctx, w, http.StatusBadRequest, err)
-			return
-		}
-	}
-
-	if err := s.save(ctx, list); err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-
-	if it, ok := s.findByID(list, req.ID); ok {
-		respondJSON(w, http.StatusOK, it)
-		return
-	}
-
-	respondErr(ctx, w, http.StatusNotFound, fmt.Errorf("no to-do with id %d", req.ID))
-}
-
-// POST|DELETE /delete  body: {"id":123}
-type deleteReq struct {
-	ID int `json:"id"`
-}
-
-// handleDelete handles deleting a todo item.
-// Expects a POST or DELETE with JSON body.
-func (s *Server) handleDelete(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
-		respondErr(ctx, w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-		return
-	}
-
-	// Parse request
-	var req deleteReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondErr(ctx, w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
-		return
-	}
-
-	if req.ID == 0 {
-		respondErr(ctx, w, http.StatusBadRequest, errors.New("id is required"))
-		return
-	}
-
-	// Data operations
-	list, err := s.load(ctx)
-	if err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-
-	newList, err := todo.Delete(list, req.ID)
-	if err != nil {
-		respondErr(ctx, w, http.StatusBadRequest, err)
-		return
-	}
-
-	if err := s.save(ctx, newList); err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-
-	respondJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": req.ID})
-}
-
-// GET /list — render an HTML page listing all todos using html/template
-func (s *Server) handleList(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	// Only allow GET
-	if r.Method != http.MethodGet {
-		respondErr(ctx, w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
-		return
-	}
-
-	// Load the todo items
-	list, err := s.load(ctx)
-	if err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, err)
-		return
-	}
-
-	// Render the template
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	data := struct {
-		Items []todo.Item
-	}{
-		Items: list,
-	}
-
-	// Execute the template
-	if err := s.listTmpl.Execute(w, data); err != nil {
-		respondErr(ctx, w, http.StatusInternalServerError, fmt.Errorf("template execute: %w", err))
-		return
-	}
-}
-
-// Run listens and serves on addr until context cancel.
+// Run starts the HTTP server at addr and shuts down on ctx.Done().
 func (s *Server) Run(ctx context.Context, addr string) error {
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           s.mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-	errCh := make(chan error, 1)
-	go func() { errCh <- srv.ListenAndServe() }()
-
-	// Wait for context done or server error.
-	select {
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-		return nil
-	case err := <-errCh:
-		if !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
-		return nil
-	}
+	srv := &http.Server{Addr: addr, Handler: s.mux}
+	go func() {
+		<-ctx.Done()
+		_ = srv.Shutdown(context.Background())
+	}()
+	slog.Info("listening", "addr", addr)
+	return srv.ListenAndServe()
 }
 
-// Convenience to construct with env vars.
+// FromEnv constructs a Server and derives the address from PORT, like Heroku.
 func FromEnv() (*Server, string) {
 	addr := ":8080"
 	if v := os.Getenv("PORT"); strings.TrimSpace(v) != "" {

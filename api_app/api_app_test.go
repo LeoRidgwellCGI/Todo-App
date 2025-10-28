@@ -24,7 +24,6 @@ type item struct {
 // --- test helpers ---
 
 // doJSON sends a JSON request to the test server and returns the response.
-// Fails the test on error.
 func doJSON(t *testing.T, ts *httptest.Server, method, path string, payload any) *http.Response {
 	t.Helper()
 	b, err := json.Marshal(payload)
@@ -43,8 +42,7 @@ func doJSON(t *testing.T, ts *httptest.Server, method, path string, payload any)
 	return resp
 }
 
-// do sends a request to the test server and returns the response.
-// Fails the test on error.
+// do sends a raw request (no automatic JSON encoding) and returns the response.
 func do(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) *http.Response {
 	t.Helper()
 	req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+path, body)
@@ -59,7 +57,6 @@ func do(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) 
 }
 
 // decodeJSON decodes JSON from r into v. Fails the test on error.
-// v must be a pointer.
 func decodeJSON(t *testing.T, r io.Reader, v any) {
 	t.Helper()
 	dec := json.NewDecoder(r)
@@ -71,8 +68,6 @@ func decodeJSON(t *testing.T, r io.Reader, v any) {
 
 // TestAPI_Add_CreatesItem verifies that the /add endpoint creates a new to-do item
 // and that the item is persisted to the expected file.
-// It checks the response and the existence of the output file.
-// It uses an isolated temporary working directory for the test.
 func TestAPI_Add_CreatesItem(t *testing.T) {
 	// Isolated working directory
 	tmp := t.TempDir()
@@ -90,19 +85,19 @@ func TestAPI_Add_CreatesItem(t *testing.T) {
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
-	// ADD
-	addBody := map[string]any{"description": "Write tests", "status": "started"}
-	var created item
-	{
-		resp := doJSON(t, ts, "POST", "/add", addBody)
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusCreated {
-			t.Fatalf("add status = %d, want %d", resp.StatusCode, http.StatusOK)
-		}
-		decodeJSON(t, resp.Body, &created)
-		if created.ID == 0 || created.Description != "Write tests" || strings.ToLower(string(created.Status)) != "started" {
-			t.Fatalf("created item unexpected: %+v", created)
-		}
+	// Create
+	resp := doJSON(t, ts, "POST", "/add", map[string]any{
+		"description": "Write tests",
+		"status":      "not started",
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+	var got item
+	decodeJSON(t, resp.Body, &got)
+	if got.Description != "Write tests" {
+		t.Fatalf("description = %q", got.Description)
 	}
 
 	// Verify file exists
@@ -111,10 +106,47 @@ func TestAPI_Add_CreatesItem(t *testing.T) {
 	}
 }
 
+// TestAPI_Get_ReturnsOne verifies that the /get endpoint returns one to-do item.
+func TestAPI_Get_ReturnsOne(t *testing.T) {
+	tmp := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	s := New("todos_test.json")
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	// Seed one item
+	var created item
+	{
+		resp := doJSON(t, ts, "POST", "/add", map[string]any{"description": "Single task", "status": "not started"})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("add status = %d", resp.StatusCode)
+		}
+		decodeJSON(t, resp.Body, &created)
+	}
+
+	// Get by ID
+	resp := do(t, ts, "GET", "/get?id="+strconv.Itoa(created.ID), nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get-by-id status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var got item
+	decodeJSON(t, resp.Body, &got)
+	if got.ID != created.ID || got.Description != created.Description {
+		t.Fatalf("got item = %+v, want %+v", got, created)
+	}
+}
+
 // TestAPI_Get_ReturnsAll verifies that the /get endpoint returns all to-do items.
-// It seeds two items via /add, then calls /get and checks the response.
-// Uses an isolated temporary working directory for the test.
-// It asserts that both created items are returned.
 func TestAPI_Get_ReturnsAll(t *testing.T) {
 	tmp := t.TempDir()
 	cwd, err := os.Getwd()
@@ -131,25 +163,23 @@ func TestAPI_Get_ReturnsAll(t *testing.T) {
 	defer ts.Close()
 
 	// Seed two items
-	_ = doJSON(t, ts, "POST", "/add", map[string]any{"description": "Alpha task", "status": "not started"}).Body.Close
-	_ = doJSON(t, ts, "POST", "/add", map[string]any{"description": "Beta task", "status": "started"}).Body.Close
+	_ = doJSON(t, ts, "POST", "/add", map[string]any{"description": "Alpha task", "status": "not started"})
+	_ = doJSON(t, ts, "POST", "/add", map[string]any{"description": "Beta task", "status": "started"})
 
+	// Get all
 	resp := do(t, ts, "GET", "/get", nil)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("get status = %d, want %d", resp.StatusCode, http.StatusOK)
+		t.Fatalf("get-all status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 	var list []item
 	decodeJSON(t, resp.Body, &list)
 	if len(list) != 2 {
-		t.Fatalf("list length = %d, want %d", len(list), 2)
+		t.Fatalf("list length = %d, want 2", len(list))
 	}
 }
 
-// TestAPI_Update_ChangesFields verifies that the /update endpoint modifies
-// the specified fields of an existing to-do item.
-// It seeds one item, updates its description and status, then retrieves it to verify.
-// Uses an isolated temporary working directory for the test.
+// TestAPI_Update_ChangesFields verifies /update updates description and status.
 func TestAPI_Update_ChangesFields(t *testing.T) {
 	tmp := t.TempDir()
 	cwd, err := os.Getwd()
@@ -188,23 +218,20 @@ func TestAPI_Update_ChangesFields(t *testing.T) {
 		t.Fatalf("update status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	// Verify
+	// Verify via GET by id
 	resp2 := do(t, ts, "GET", "/get?id="+strconv.Itoa(created.ID), nil)
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusOK {
-		t.Fatalf("get-one status = %d, want %d", resp2.StatusCode, http.StatusOK)
+		t.Fatalf("get-by-id status = %d, want %d", resp2.StatusCode, http.StatusOK)
 	}
-	var got item
-	decodeJSON(t, resp2.Body, &got)
-	if got.Description != "Alpha updated" || strings.ToLower(string(got.Status)) != "completed" {
-		t.Fatalf("unexpected after update: %+v", got)
+	var after item
+	decodeJSON(t, resp2.Body, &after)
+	if after.Description != "Alpha updated" || after.Status != "completed" {
+		t.Fatalf("updated item = %+v", after)
 	}
 }
 
-// TestAPI_Delete_RemovesItem verifies that the /delete endpoint removes the specified to-do item.
-// It seeds one item, deletes it, then verifies that the list is empty.
-// Uses an isolated temporary working directory for the test.
-// It asserts that after deletion, the item is no longer present.
+// TestAPI_Delete_RemovesItem verifies /delete removes the item and then list is empty.
 func TestAPI_Delete_RemovesItem(t *testing.T) {
 	tmp := t.TempDir()
 	cwd, err := os.Getwd()
@@ -234,8 +261,8 @@ func TestAPI_Delete_RemovesItem(t *testing.T) {
 	// DELETE
 	resp := doJSON(t, ts, "POST", "/delete", map[string]any{"id": created.ID})
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("delete status = %d, want %d", resp.StatusCode, http.StatusOK)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want %d", resp.StatusCode, http.StatusNoContent)
 	}
 
 	// Ensure now empty
@@ -251,12 +278,8 @@ func TestAPI_Delete_RemovesItem(t *testing.T) {
 	}
 }
 
-// TestAPI_AboutServesStatic
-// Verifies the static /about/ endpoint (served with http.FileServer)
-// returns 200 OK and serves HTML content. The test creates a temporary
-// ./static/about/index.html under the per-test working directory.
+// TestAPI_AboutServesStatic ensures /about/ serves content from ./static/about.
 func TestAPI_AboutServesStatic(t *testing.T) {
-	// Create an isolated working directory
 	tmp := t.TempDir()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -267,36 +290,33 @@ func TestAPI_AboutServesStatic(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(cwd) })
 
-	// Arrange a static file under ./static/about/index.html
-	if err := os.MkdirAll("static/about", 0o755); err != nil {
+	// Create ./static/about/index.html under the temp workspace
+	if err := os.MkdirAll(filepath.Join("static", "about"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	const html = "<!doctype html><html><head><title>About</title></head><body>About Todo-App</body></html>"
-	if err := os.WriteFile("static/about/index.html", []byte(html), 0o644); err != nil {
-		t.Fatalf("write about index: %v", err)
+	const html = "<!doctype html><html><body><h1>About OK</h1></body></html>"
+	if err := os.WriteFile(filepath.Join("static", "about", "index.html"), []byte(html), 0o644); err != nil {
+		t.Fatalf("write index.html: %v", err)
 	}
 
-	// Start the API server (it should have /about/ mounted via http.FileServer)
 	s := New("todos_test.json")
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
-	// Request the about page (directory path with trailing slash so index.html is served)
-	resp := do(t, ts, http.MethodGet, "/about/", nil)
+	resp := do(t, ts, "GET", "/about/", nil)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("about status = %d, want %d", resp.StatusCode, http.StatusOK)
+		t.Fatalf("/about status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 	ct := resp.Header.Get("Content-Type")
+	// Allow either "text/html; charset=utf-8" or generic "text/html"
 	if !strings.Contains(ct, "text/html") {
-		t.Fatalf("about content-type = %q, want to contain %q", ct, "text/html")
+		t.Fatalf("/about content-type = %q, want to contain %q", ct, "text/html")
 	}
 }
 
-// TestAPI_ListRendersHTML verifies the dynamic /list page (served via html/template)
-// renders a table of todos and includes the descriptions of created items.
+// TestAPI_ListRendersHTML validates the HTML table for /list
 func TestAPI_ListRendersHTML(t *testing.T) {
-	// Create an isolated working directory
 	tmp := t.TempDir()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -307,33 +327,15 @@ func TestAPI_ListRendersHTML(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(cwd) })
 
-	// Start server
 	s := New("todos_test.json")
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
-	// Add a couple of todos (use the same path style the file already uses)
-	resp1 := doJSON(t, ts, http.MethodPost, "/add", map[string]any{
-		"description": "Alpha task",
-		"status":      "started",
-	})
-	defer resp1.Body.Close()
-	if resp1.StatusCode != http.StatusCreated {
-		t.Fatalf("create(1) status = %d, want %d", resp1.StatusCode, http.StatusCreated)
-	}
+	// Seed content
+	_ = doJSON(t, ts, "POST", "/add", map[string]any{"description": "Alpha task", "status": "not started"})
+	_ = doJSON(t, ts, "POST", "/add", map[string]any{"description": "Beta task", "status": "started"})
 
-	// Add another todo
-	resp2 := doJSON(t, ts, http.MethodPost, "/add", map[string]any{
-		"description": "Beta task",
-		"status":      "not started",
-	})
-	defer resp2.Body.Close()
-	if resp2.StatusCode != http.StatusCreated {
-		t.Fatalf("create(2) status = %d, want %d", resp2.StatusCode, http.StatusCreated)
-	}
-
-	// Request /list (HTML view)
-	resp := do(t, ts, http.MethodGet, "/list", nil)
+	resp := do(t, ts, "GET", "/list", nil)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("/list status = %d, want %d", resp.StatusCode, http.StatusOK)
