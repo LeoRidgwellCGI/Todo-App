@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 
 	// Local packages
 	"todo-app/cli_app"
@@ -69,7 +70,7 @@ func main() {
 
 	// 2) Create a signal-aware context that is canceled on SIGINT (Ctrl+C).
 	//    This lets downstream code optionally react to cancellation when needed.
-	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// 3) Create a context that also carries a TraceID for end-to-end logging.
@@ -98,22 +99,20 @@ func main() {
 		errCh <- cli_app.New().Run(ctx, args)
 	}()
 
-	// We non-blockingly read the CLI result. Whether it fails or succeeds,
-	// the process does not exit until user presses Ctrl+C.
-	var runErr error
-	select {
-	case runErr = <-errCh:
-		if runErr != nil {
-			slog.ErrorContext(ctx, "cli run failed", "error", runErr)
-			fmt.Fprintln(os.Stderr, runErr)
-		} else {
-			slog.InfoContext(ctx, "cli run completed")
-		}
-	case <-sigCtx.Done():
-		// User requested shutdown (Ctrl+C)
-		fmt.Fprintln(os.Stderr, "Shutting down...")
-	default:
-		// CLI still running (fine) — we'll still wait for Ctrl+C below.
+	// Block the process until Ctrl+C (or SIGTERM).
+	<-sigCtx.Done()
+	fmt.Fprintln(os.Stderr, "Shutting down...")
+
+	// Cancel signal handlers (and context) then wait for CLI to end.
+	// If the CLI finished earlier, errCh already has a value; otherwise,
+	// the cancellation will prompt Run to return.
+	stop()
+	runErr := <-errCh
+	if runErr != nil {
+		slog.ErrorContext(ctx, "cli run failed", "error", runErr)
+		fmt.Fprintln(os.Stderr, runErr)
+	} else {
+		slog.InfoContext(ctx, "cli run completed")
 	}
 
 	// Graceful exit code: 1 if CLI returned an error, else 0.

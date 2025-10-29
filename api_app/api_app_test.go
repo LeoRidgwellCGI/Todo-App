@@ -101,8 +101,8 @@ func TestAPI_Add_CreatesItem(t *testing.T) {
 	}
 
 	// Verify file exists
-	if _, err := os.Stat(filepath.Join("out", "todos_test.json")); err != nil {
-		t.Fatalf("expected out/todos_test.json to exist: %v", err)
+	if _, err := os.Stat(filepath.Join(tmp, "todos_test.json")); err != nil {
+		t.Fatalf("expected %v/todos_test.json to exist: %v", tmp, err)
 	}
 }
 

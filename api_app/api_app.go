@@ -22,7 +22,7 @@ type Server struct {
 
 // New constructs a server using a JSON file at outPath.
 func New(outPath string) *Server {
-	st := service.NewFileStore(outPath)
+	st := service.NewActorStore(outPath)
 	mux := http.NewServeMux()
 	httpapi.Register(mux, st)
 	return &Server{store: st, mux: mux}
