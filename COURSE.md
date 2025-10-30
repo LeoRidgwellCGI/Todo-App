@@ -30,7 +30,7 @@ A to-do item should include a description and a status of "not started", "starte
 - ✅ Use "html/template" to serve a dynamic page containing a list of all to-do items to a new "/list" endpoint
 
 ## 5) Concurrency
-- Use the Actor/Communicating Sequential Processes (CSP) pattern to support concurrent reads and concurrent safe write
+- ✅ Use the Actor/Communicating Sequential Processes (CSP) pattern to support concurrent reads and concurrent safe write
 - Use Parallel tests to validate that the solution is concurrent safe
 
 ---
